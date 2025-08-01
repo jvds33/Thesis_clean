@@ -1,0 +1,317 @@
+You are an aspect-category assignment expert for restaurant review analysis.
+
+Your task is to assign the correct **Aspect Category** to each (aspect, opinion) pair you receive.
+
+AVAILABLE CATEGORIES:
+restaurant general – Overall opinion of the restaurant as a whole, without focusing on any specific facet such as price, food, or service.
+
+restaurant prices – Judgments about the restaurant’s overall cost level or value for money.
+
+restaurant miscellaneous – Comments on other broad restaurant-wide issues that don’t fit elsewhere (e.g., cleanliness rules, reservation policy).
+
+food quality – Assessment of how the food tastes, its freshness, temperature, cooking accuracy, authenticity, etc.
+
+food prices – Opinions on the cost or value of individual dishes or the food offering in general.
+
+food style_options – Remarks on presentation, portion size, variety, or dietary/cuisine options of the food.
+
+drinks quality – Evaluation of beverages’ taste, mix, temperature, freshness, strength, and similar characteristics.
+
+drinks prices – Judgments about beverage prices or their value for money.
+
+drinks style_options – Comments on drink presentation, variety (e.g., cocktail list), portion size, or special options.
+
+service general – Overall evaluation of service behavior and efficiency—staff friendliness, promptness, attentiveness, professionalism.
+
+ambience general – Opinions on the atmosphere and décor—music, lighting, noise, seating comfort, interior or exterior design.
+
+location general – Opinions about where the venue is situated—view, neighborhood, parking, accessibility, convenience.
+
+INSTRUCTIONS:
+1. For each input pair, analyse the aspect term **and** its context in the review text.
+2. Choose exactly one category from the list above that best fits the aspect.
+3. Keep the aspect and opinion text exactly as provided (do not correct spelling or casing).
+4. If the aspect term or opinion is 'null', infer the most plausible category from the opinion, reason or/and context of the review.
+5. Output a JSON list named `categorized_pairs`, where each object contains:
+      • aspect   – the aspect term (or null)
+      • opinion  – the opinion term (or null)
+      • category – one of the 13 categories above
+
+
+EXAMPLE 1
+Text: "the waitress was very patient with us and the food is phenomenal !"
+Aspect-opinion pairs with reasons: [
+{{"aspect": "waitress", "opinion": "patient", "reason": "The adjective \"patient\" evaluates the waitress."}},
+{{"aspect": "food", "opinion": "phenomenal", "reason": "The adjective \"phenomenal\" evaluates the food."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "waitress", "opinion": "patient", "category": "service general"}},
+{{"aspect": "food", "opinion": "phenomenal", "category": "food quality"}}
+]
+}}
+
+EXAMPLE 2
+Text: "mermaid inn is an overall good restaurant with really good seafood ."
+Aspect-opinion pairs with reasons: [
+{{"aspect": "seafood", "opinion": "good", "reason": "The adjective \"good\" evaluates the seafood."}},
+{{"aspect": "mermaid inn", "opinion": "good", "reason": "The adjective \"good\" evaluates the restaurant."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "seafood", "opinion": "good", "category": "food quality"}},
+{{"aspect": "mermaid inn", "opinion": "good", "category": "restaurant general"}}
+]
+}}
+
+EXAMPLE 3
+Text: "food is great and inexpensive ."
+Aspect-opinion pairs with reasons: [
+{{"aspect": "food", "opinion": "great", "reason": "The adjective \"great\" evaluates the food quality."}},
+{{"aspect": "food", "opinion": "inexpensive", "reason": "The adjective \"inexpensive\" evaluates the food prices."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "food", "opinion": "great", "category": "food quality"}},
+{{"aspect": "food", "opinion": "inexpensive", "category": "food prices"}}
+]
+}}
+
+EXAMPLE 4
+Text: "this is one of my favorite spot , very relaxing the food is great all the times , celebrated my engagement and my wedding here , it was very well organized ."
+Aspect-opinion pairs with reasons: [
+{{"aspect": "food", "opinion": "great", "reason": "The adjective \"great\" evaluates the food."}},
+{{"aspect": "null", "opinion": "favorite", "reason": "The adjective \"favorite\" expresses a positive view of the restaurant in general."}},
+{{"aspect": "null", "opinion": "relaxing", "reason": "The adjective \"relaxing\" evaluates the ambience of the restaurant."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "food", "opinion": "great", "category": "food quality"}},
+{{"aspect": "null", "opinion": "favorite", "category": "restaurant general"}},
+{{"aspect": "null", "opinion": "relaxing", "category": "ambience general"}}
+]
+}}
+
+EXAMPLE 5
+Text: "would never go back"
+Aspect-opinion pairs with reasons: [
+{{"aspect": "null", "opinion": "null", "reason": "The sentence implies a negative sentiment toward the restaurant without stating a specific aspect or opinion."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "null", "opinion": "null", "category": "restaurant general"}}
+]
+}}
+
+EXAMPLE 6
+Text: "for starters they delivered us someone else ' s order ."
+Aspect-opinion pairs with reasons: [
+{{"aspect": "null", "opinion": "null", "reason": "The statement implies dissatisfaction with service, but no explicit opinion word is given."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "null", "opinion": "null", "category": "service general"}}
+]
+}}
+
+EXAMPLE 7
+Text: "the portion sizes here are huge , and the sushi is good ."
+Aspect-opinion pairs with reasons: [
+{{"aspect": "portion sizes", "opinion": "huge", "reason": "The adjective \"huge\" evaluates the portion sizes."}},
+{{"aspect": "sushi", "opinion": "good", "reason": "The adjective \"good\" evaluates the sushi."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "portion sizes", "opinion": "huge", "category": "food style_options"}},
+{{"aspect": "sushi", "opinion": "good", "category": "food quality"}}
+]
+}}
+
+EXAMPLE 8
+Text: "it is terrific , as is the value ."
+Aspect-opinion pairs with reasons: [
+{{"aspect": "null", "opinion": "terrific", "reason": "The adjective \"terrific\" positively evaluates the food implicitly."}},
+{{"aspect": "null", "opinion": "terrific", "reason": "The adjective \"terrific\" positively evaluates the value."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "null", "opinion": "terrific", "category": "food quality"}},
+{{"aspect": "null", "opinion": "terrific", "category": "food prices"}}
+]
+}}
+
+EXAMPLE 9
+Text: "bagels are ok , but be sure not to make any special requests !"
+Aspect-opinion pairs with reasons: [
+{{"aspect": "bagels", "opinion": "ok", "reason": "The adjective \"ok\" evaluates the bagels."}},
+{{"aspect": "null", "opinion": "null", "reason": "The second part implies a negative service experience without an explicit opinion."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "bagels", "opinion": "ok", "category": "food quality"}},
+{{"aspect": "null", "opinion": "null", "category": "service general"}}
+]
+}}
+
+EXAMPLE 10
+Text: "the place itself is beautiful the bar scene seems to be happening ."
+Aspect-opinion pairs with reasons: [
+{{"aspect": "place", "opinion": "beautiful", "reason": "The adjective \"beautiful\" evaluates the ambience of the place."}},
+{{"aspect": "bar scene", "opinion": "null", "reason": "The phrase \"seems to be happening\" implies a positive ambience but lacks a direct opinion word."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "place", "opinion": "beautiful", "category": "ambience general"}},
+{{"aspect": "bar scene", "opinion": "null", "category": "ambience general"}}
+]
+}}
+
+EXAMPLE 11
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": null, "opinion": "wonderfully low", "reason": "The phrase "wonderfully low" evaluates the restaurant’s prices positively while the aspect is implicit."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": null, "opinion": "wonderfully low", "category": "restaurant prices"}}
+]
+}}
+
+EXAMPLE 12
+Text: "restaurant with a view"
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "view", "opinion": null, "reason": "The noun "view" specifies the location feature, but no explicit opinion word is given."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "view", "opinion": null, "category": "location general"}}
+]
+}}
+
+EXAMPLE 13
+Text: "the sangria was pretty tasty and good on a hot muggy day ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "sangria", "opinion": "tasty", "reason": "The adjective "tasty" evaluates the sangria quality."}},
+{{"aspect": "sangria", "opinion": "good", "reason": "The adjective "good" also evaluates the sangria quality."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "sangria", "opinion": "tasty", "category": "drinks quality"}},
+{{"aspect": "sangria", "opinion": "good", "category": "drinks quality"}}
+]
+}}
+
+EXAMPLE 14
+Text: "drinks way over priced ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "drinks", "opinion": "over priced", "reason": "The phrase "over priced" evaluates the drinks’ cost negatively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "drinks", "opinion": "over priced", "category": "drinks prices"}}
+]
+}}
+
+
+EXAMPLE 15
+Text: "very good wine choices ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "wine choices", "opinion": "good", "reason": "The adjective "good" evaluates the variety of wine choices."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "wine choices", "opinion": "good", "category": "drinks style_options"}}
+]
+}}
+
+EXAMPLE 16
+Text: "will absolutely visit again ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": null, "opinion": null, "reason": "The sentence expresses a positive intention to revisit, but no explicit aspect or opinion word is present."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": null, "opinion": null, "category": "restaurant general"}}
+]
+}}
+
+EXAMPLE 17
+Text: "helpful service and average price per dish $ 10 ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "service", "opinion": "helpful", "reason": "The adjective "helpful" evaluates the service."}},
+{{"aspect": "dish", "opinion": "average", "reason": "The adjective "average" evaluates the price per dish."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "service", "opinion": "helpful", "category": "service general"}},
+{{"aspect": "dish", "opinion": "average", "category": "food prices"}}
+]
+}}
+
+EXAMPLE 18
+Text: "everything was going good until we got our meals ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "meals", "opinion": null, "reason": "The clause implies poor meal quality once served, but no explicit opinion word is present."}},
+{{"aspect": null, "opinion": "good", "reason": "The adjective "good" positively describes the overall experience before the meals arrived."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "meals", "opinion": null, "category": "food quality"}},
+{{"aspect": null, "opinion": "good", "category": "restaurant general"}}
+]
+}}
+
+EXAMPLE 19
+Text: "the pizza was pretty good and huge ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "pizza", "opinion": "good", "reason": "The adjective "good" evaluates the pizza quality."}},
+{{"aspect": "pizza", "opinion": "huge", "reason": "The adjective "huge" evaluates the pizza’s portion size."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "pizza", "opinion": "good", "category": "food quality"}},
+{{"aspect": "pizza", "opinion": "huge", "category": "food style_options"}}
+]
+}}
+
+EXAMPLE 20
+Text: "love the atmosphere - felt like i was in paris ."
+Aspect-opinion pairs with reasons:
+[
+{{"aspect": "atmosphere", "opinion": "love", "reason": "The verb "love" positively evaluates the atmosphere."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "atmosphere", "opinion": "love", "category": "ambience general"}}
+]
+}}
+
+{format_instructions} 

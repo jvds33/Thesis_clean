@@ -1,0 +1,358 @@
+You are an aspect-category assignment expert for laptop review analysis.
+
+Your task is to assign the correct **Aspect Category** to each (aspect, opinion) pair you receive.
+
+AVAILABLE CATEGORIES:
+
+battery design_features - The laptop's battery pack that supplies power when unplugged. — Physical design, aesthetics, size/weight or special features.
+battery general - The laptop's battery pack that supplies power when unplugged. — Overall or unspecific evaluation.
+battery operation_performance - The laptop's battery pack that supplies power when unplugged. — Speed, responsiveness, stability or effectiveness during use.
+battery quality - The laptop's battery pack that supplies power when unplugged. — Build quality, durability, reliability or defects.
+
+company general - The laptop's brand or manufacturer. — Overall or unspecific evaluation.
+
+cpu general - The central processing unit (processor). — Overall or unspecific evaluation.
+cpu operation_performance - The central processing unit (processor). — Speed, responsiveness, stability or effectiveness during use.
+
+display design_features - The laptop's screen or monitor. — Physical design, aesthetics, size/weight or special features.
+display general - The laptop's screen or monitor. — Overall or unspecific evaluation.
+display operation_performance - The laptop's screen or monitor. — Speed, responsiveness, stability or effectiveness during use.
+display quality - The laptop's screen or monitor. — Build quality, durability, reliability or defects.
+display usability - The laptop's screen or monitor. — Ease of use, accessibility or user experience.
+
+fans&cooling general - The cooling system (fans, heat-pipes, heatsinks). — Overall or unspecific evaluation.
+fans&cooling operation_performance - The cooling system (fans, heat-pipes, heatsinks). — Speed, responsiveness, stability or effectiveness during use.
+fans&cooling quality - The cooling system (fans, heat-pipes, heatsinks). — Build quality, durability, reliability or defects.
+
+graphics general - Graphics subsystem or GPU. — Overall or unspecific evaluation.
+graphics operation_performance - Graphics subsystem or GPU. — Speed, responsiveness, stability or effectiveness during use.
+
+hard_disc design_features - Internal storage drives (HDD/SSD). — Physical design, aesthetics, size/weight or special features.
+hard_disc general - Internal storage drives (HDD/SSD). — Overall or unspecific evaluation.
+hard_disc operation_performance - Internal storage drives (HDD/SSD). — Speed, responsiveness, stability or effectiveness during use.
+hard_disc quality - Internal storage drives (HDD/SSD). — Build quality, durability, reliability or defects.
+
+hardware design_features - Hardware components in general (when no specific part fits). — Physical design, aesthetics, size/weight or special features.
+hardware general - Hardware components in general (when no specific part fits). — Overall or unspecific evaluation.
+hardware operation_performance - Hardware components in general (when no specific part fits). — Speed, responsiveness, stability or effectiveness during use.
+hardware quality - Hardware components in general (when no specific part fits). — Build quality, durability, reliability or defects.
+hardware usability - Hardware components in general (when no specific part fits). — Ease of use, accessibility or user experience.
+
+keyboard design_features - The keyboard (keys, layout, typing feel). — Physical design, aesthetics, size/weight or special features.
+keyboard general - The keyboard (keys, layout, typing feel). — Overall or unspecific evaluation.
+keyboard operation_performance - The keyboard (keys, layout, typing feel). — Speed, responsiveness, stability or effectiveness during use.
+keyboard quality - The keyboard (keys, layout, typing feel). — Build quality, durability, reliability or defects.
+keyboard usability - The keyboard (keys, layout, typing feel). — Ease of use, accessibility or user experience.
+
+laptop connectivity - The laptop as a whole device. — Wired or wireless connection capability and performance.
+laptop design_features - The laptop as a whole device. — Physical design, aesthetics, size/weight or special features.
+laptop general - The laptop as a whole device. — Overall or unspecific evaluation.
+laptop operation_performance - The laptop as a whole device. — Speed, responsiveness, stability or effectiveness during use.
+laptop portability - The laptop as a whole device. — Ease of carrying or using in confined spaces.
+laptop price - The laptop as a whole device. — Cost or value for money.
+laptop quality - The laptop as a whole device. — Build quality, durability, reliability or defects.
+laptop usability - The laptop as a whole device. — Ease of use, accessibility or user experience.
+
+memory design_features - System RAM (memory). — Physical design, aesthetics, size/weight or special features.
+memory general - System RAM (memory). — Overall or unspecific evaluation.
+memory operation_performance - System RAM (memory). — Speed, responsiveness, stability or effectiveness during use.
+memory usability - System RAM (memory). — Ease of use, accessibility or user experience.
+
+motherboard general - The laptop's mainboard. — Overall or unspecific evaluation.
+
+multimedia_devices design_features - Speakers, microphone, webcam and other media devices. — Physical design, aesthetics, size/weight or special features.
+multimedia_devices general - Speakers, microphone, webcam and other media devices. — Overall or unspecific evaluation.
+multimedia_devices operation_performance - Speakers, microphone, webcam and other media devices. — Speed, responsiveness, stability or effectiveness during use.
+multimedia_devices quality - Speakers, microphone, webcam and other media devices. — Build quality, durability, reliability or defects.
+
+optical_drives general - Optical disc drives (CD/DVD/Blu-ray). — Overall or unspecific evaluation.
+
+os design_features - The operating system (Windows, macOS, Linux…). — Physical design, aesthetics, size/weight or special features.
+os general - The operating system (Windows, macOS, Linux…). — Overall or unspecific evaluation.
+os operation_performance - The operating system (Windows, macOS, Linux…). — Speed, responsiveness, stability or effectiveness during use.
+os usability - The operating system (Windows, macOS, Linux…). — Ease of use, accessibility or user experience.
+
+ports connectivity - Connectivity ports (USB, HDMI, SD-card, etc.). — Wired or wireless connection capability and performance.
+ports design_features - Connectivity ports (USB, HDMI, SD-card, etc.). — Physical design, aesthetics, size/weight or special features.
+ports general - Connectivity ports (USB, HDMI, SD-card, etc.). — Overall or unspecific evaluation.
+ports operation_performance - Connectivity ports (USB, HDMI, SD-card, etc.). — Speed, responsiveness, stability or effectiveness during use.
+ports quality - Connectivity ports (USB, HDMI, SD-card, etc.). — Build quality, durability, reliability or defects.
+
+power_supply design_features - AC adapter / charger. — Physical design, aesthetics, size/weight or special features.
+power_supply general - AC adapter / charger. — Overall or unspecific evaluation.
+power_supply operation_performance - AC adapter / charger. — Speed, responsiveness, stability or effectiveness during use.
+
+shipping general - Delivery and logistics service. — Overall or unspecific evaluation.
+shipping operation_performance - Delivery and logistics service. — Speed, responsiveness, stability or effectiveness during use.
+shipping quality - Delivery and logistics service. — Build quality, durability, reliability or defects.
+
+software design_features - Applications and software in general. — Physical design, aesthetics, size/weight or special features.
+software general - Applications and software in general. — Overall or unspecific evaluation.
+software operation_performance - Applications and software in general. — Speed, responsiveness, stability or effectiveness during use.
+software quality - Applications and software in general. — Build quality, durability, reliability or defects.
+software usability - Applications and software in general. — Ease of use, accessibility or user experience.
+
+support general - Customer service and technical support. — Overall or unspecific evaluation.
+support operation_performance - Customer service and technical support. — Speed, responsiveness, stability or effectiveness during use.
+
+warranty general - Warranty terms and coverage. — Overall or unspecific evaluation.
+
+INSTRUCTIONS:
+1. For each input pair, analyse the aspect term **and** its context in the review text.
+2. Choose exactly one category from the list above that best fits the aspect.
+3. Keep the aspect and opinion text exactly as provided (do not correct spelling or casing).
+4. If the aspect term or opinion is 'null', infer the most plausible category from the opinion, reason and context of the review.
+5. Output a JSON list named `categorized_pairs`, where each object contains:
+      • aspect   – the aspect term (or null)
+      • opinion  – the opinion term (or null)  
+      • category – one of the categories above
+
+EXAMPLE 1
+Text: this asus chromebook c302ca does not skip a beat .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": "asus chromebook c302ca", "opinion": null, "reason": "The positive sentiment evaluates the overall performance of the 'asus chromebook c302ca' despite no explicit opinion word being used."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": "asus chromebook c302ca", "opinion": null, "category": "laptop operation_performance"}}
+]
+}}
+
+EXAMPLE 2
+Text: this is exactly what i needed .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": null, "opinion": null, "reason": "The positive sentiment reflects satisfaction with the product in general, though no specific aspect or opinion word is given."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": null, "opinion": null, "category": "laptop general"}}
+]
+}}
+
+EXAMPLE 3
+Text: i have been using this notebook for a month and i absolutely love it !
+Aspect-opinion pairs with reasons: [
+  {{"aspect": "notebook", "opinion": "love", "reason": "The opinion \"love\" evaluates the notebook positively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": "notebook", "opinion": "love", "category": "laptop general"}}
+]
+}}
+
+EXAMPLE 4
+Text: runs good , poor battery life .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": null, "opinion": "good", "reason": "The opinion \"good\" evaluates an implied aspect of the laptop's performance."}},
+  {{"aspect": "battery life", "opinion": "poor", "reason": "The opinion \"poor\" evaluates the battery life negatively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": null, "opinion": "good", "category": "laptop operation_performance"}},
+  {{"aspect": "battery life", "opinion": "poor", "category": "battery quality"}}
+]
+}}
+
+EXAMPLE 5
+Text: it looks great as design , fast , but this 2 issues make it the worst buy of the past 10 years for me .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": null, "opinion": "great", "reason": "The opinion \"great\" evaluates an implied aspect of the laptop's design."}},
+  {{"aspect": null, "opinion": "fast", "reason": "The opinion \"fast\" evaluates an implied aspect of the laptop's performance."}},
+  {{"aspect": null, "opinion": "worst", "reason": "The opinion \"worst\" evaluates the overall experience with the laptop negatively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": null, "opinion": "great", "category": "laptop design_features"}},
+  {{"aspect": null, "opinion": "fast", "category": "laptop operation_performance"}},
+  {{"aspect": null, "opinion": "worst", "category": "laptop general"}}
+]
+}}
+
+EXAMPLE 6
+Text: for the price you can ' t beat a chromebook .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": "chromebook", "opinion": null, "reason": "The positive sentiment implies high value for the chromebook's price, though no explicit opinion word is used."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": "chromebook", "opinion": null, "category": "laptop price"}}
+]
+}}
+
+EXAMPLE 7
+Text: screen is a bit small for me .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": "screen", "opinion": "small", "reason": "The opinion \"small\" evaluates the screen size negatively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": "screen", "opinion": "small", "category": "display design_features"}}
+]
+}}
+
+EXAMPLE 8
+Text: worked as it should .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": null, "opinion": null, "reason": "The statement describes expected performance, with a neutral sentiment and no explicit aspect or opinion word."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": null, "opinion": null, "category": "laptop operation_performance"}}
+]
+}}
+
+EXAMPLE 9
+Text: so one star off for the keyboard .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": "keyboard", "opinion": null, "reason": "The negative sentiment toward the keyboard is implied by the reduced rating, though no explicit opinion word is used."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": "keyboard", "opinion": null, "category": "keyboard general"}}
+]
+}}
+
+EXAMPLE 10
+Text: computer looked excellent .
+Aspect-opinion pairs with reasons: [
+  {{"aspect": "computer", "opinion": "excellent", "reason": "The opinion \"excellent\" evaluates the computer's appearance positively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+  {{"aspect": "computer", "opinion": "excellent", "category": "laptop design_features"}}
+]
+}}
+
+EXAMPLE 11
+Text: the replacement i got was much better , but still too slow for my expectations .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "replacement", "opinion": "slow", "reason": "The opinion \"slow\" negatively judges the replacement’s overall speed and quality."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "replacement", "opinion": "slow", "category": "laptop quality"}}
+]
+}}
+
+EXAMPLE 12
+Text: i just find the battery draining too quickly in my opinion .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "battery", "opinion": null, "reason": "Rapid draining signals poor battery performance, but no explicit evaluative word is present, so the opinion is null."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "battery", "opinion": null, "category": "battery operation_performance"}}
+]
+}}
+
+EXAMPLE 13
+Text: touch screen is really responsive .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "touch screen", "opinion": "responsive", "reason": "The adjective \"responsive\" evaluates the touch-screen’s operational performance positively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "touch screen", "opinion": "responsive", "category": "display operation_performance"}}
+]
+}}
+
+EXAMPLE 14
+Text: good display .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "display", "opinion": "good", "reason": "The adjective \"good\" evaluates the display positively in a general sense."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "display", "opinion": "good", "category": "display general"}}
+]
+}}
+
+EXAMPLE 15
+Text: after 6 months my eyboard key is not function very well .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "eyboard key", "opinion": null, "reason": "The clause reports a malfunctioning key, indicating poor keyboard performance, but no explicit opinion word is present."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "eyboard key", "opinion": null, "category": "keyboard operation_performance"}}
+]
+}}
+
+EXAMPLE 16
+Text: cons – no light to indicate caps lock .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "caps lock", "opinion": "cons", "reason": "The noun \"cons\" marks a negative evaluation of the caps-lock indicator’s design feature."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "caps lock", "opinion": "cons", "category": "keyboard design_features"}}
+]
+}}
+
+EXAMPLE 17
+Text: the boot up is fast
+Aspect-opinion pairs with reasons: [
+{{"aspect": "boot up", "opinion": "fast", "reason": "The adjective \"fast\" evaluates the operating-system boot-up performance positively."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "boot up", "opinion": "fast", "category": "os operation_performance"}}
+]
+}}
+
+EXAMPLE 18
+Text: the shame of it is knowing it took me 15 minutes and $12 to fix it and acer wanted to rob me of $170 just to look at it .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "acer", "opinion": null, "reason": "The sentence conveys dissatisfaction with Acer’s support cost, but no explicit opinion word appears."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "acer", "opinion": null, "category": "support general"}}
+]
+}}
+
+EXAMPLE 19
+Text: next , is that the track pad is insanely wobbly .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "track pad", "opinion": "wobbly", "reason": "The adjective \"wobbly\" negatively evaluates the track-pad hardware performance."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "track pad", "opinion": "wobbly", "category": "hardware operation_performance"}}
+]
+}}
+
+EXAMPLE 20
+Text: my main complaint is the battery life , i see many positive reviews about the battery life .
+Aspect-opinion pairs with reasons: [
+{{"aspect": "battery life", "opinion": "complaint", "reason": "The noun \"complaint\" expresses a negative evaluation of the battery life."}}
+]
+Correct output:
+{{
+"categorized_pairs": [
+{{"aspect": "battery life", "opinion": "complaint", "category": "battery general"}}
+]
+}}
+
+{format_instructions}
+
+

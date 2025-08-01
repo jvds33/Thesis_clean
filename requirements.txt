@@ -1,0 +1,24 @@
+numpy>= 1.23
+# openai==0.27.8 # Old version
+openai>=1.0.0 # For AzureOpenAI client
+#评测 
+# rouge==1.0.1 # Commenting out as it seems related to T5 eval
+# nltk==3.6.5 # Commenting out, commonly for text processing with T5/NLP tasks, may not be needed for LLM calls directly
+# datasets==1.17.0 # Commenting out, HuggingFace datasets, likely for T5
+# transformers==4.14.1 # Removing, was for T5
+# sentencepiece==0.1.96 # Removing, T5 tokenizer dependency
+# tokenizers==0.10.3 # Removing, T5 tokenizer dependency
+# protobuf==3.20.0 # Removing, often a dependency of transformers/torch
+# wandb==0.15.2 # Commenting out, experiment tracking, often used with T5 training
+# pytorch-lightning==1.5.10 # Removing, was for T5 training
+# torch==1.10.1 # Removing, was for T5
+scikit-learn==1.2.2
+python-dotenv==0.21.0 # For loading .env files
+requests # requests is used in llms/api.py
+six==1.16.0
+fpdf2
+azure-ai-inference
+matplotlib
+seaborn
+pandas
+tqdm

@@ -1,0 +1,172 @@
+You are a sentiment analysis expert specializing in restaurant reviews. Your task is to classify the sentiment of opinions about aspects in a restaurant review.
+
+────────  Evidence you must consider  ────────
+✓ aspect term (or 'null' if implied)  
+✓ opinion phrase (or 'null' if implicit)  
+✓ reason text supplied with the triple  
+✓ the full review sentence / context
+
+────────  Decision rules  ────────
+1. Read all four evidence sources above before labelling.  
+2. Focus on the clause that contains the aspect; ignore unrelated
+   sentiment elsewhere in the review.
+3. Assign **exactly one** to the opinion - aspect pair sentiment from:
+    - positive
+    - negative
+    - neutral (neutral expresses mild positive or mild negative sentiment.)
+
+Here are examples of proper sentiment classification for restaurant reviews:
+
+EXAMPLE 1
+Text: "the waitress was very patient with us and the food is phenomenal !"
+Pairs:
+- aspect: "waitress", opinion: "patient", reason: "The adjective \"patient\" evaluates the waitress."
+- aspect: "food", opinion: "phenomenal", reason: "The adjective \"phenomenal\" evaluates the food."
+Output:
+{{"sentiments":[{{"aspect":"waitress","opinion":"patient","sentiment":"positive"}},{{"aspect":"food","opinion":"phenomenal","sentiment":"positive"}}]}}
+
+EXAMPLE 2
+Text: "mermaid inn is an overall good restaurant with really good seafood ."
+Pairs:
+- aspect: "seafood", opinion: "good", reason: "The adjective \"good\" evaluates the seafood."
+- aspect: "mermaid inn", opinion: "good", reason: "The adjective \"good\" evaluates the restaurant."
+Output:
+{{"sentiments":[{{"aspect":"seafood","opinion":"good","sentiment":"positive"}},{{"aspect":"mermaid inn","opinion":"good","sentiment":"positive"}}]}}
+
+EXAMPLE 3
+Text: "food is great and inexpensive ."
+Pairs:
+- aspect: "food", opinion: "great", reason: "The adjective \"great\" evaluates the food quality."
+- aspect: "food", opinion: "inexpensive", reason: "The adjective \"inexpensive\" evaluates the food prices."
+Output:
+{{"sentiments":[{{"aspect":"food","opinion":"great","sentiment":"positive"}},{{"aspect":"food","opinion":"inexpensive","sentiment":"positive"}}]}}
+
+EXAMPLE 4
+Text: "this is one of my favorite spot , very relaxing the food is great all the times , celebrated my engagement and my wedding here , it was very well organized ."
+Pairs:
+- aspect: "food", opinion: "great", reason: "The adjective \"great\" evaluates the food."
+- aspect: null, opinion: "favorite", reason: "The adjective \"favorite\" expresses a positive view of the restaurant in general."
+- aspect: null, opinion: "relaxing", reason: "The adjective \"relaxing\" evaluates the ambience of the restaurant."
+Output:
+{{"sentiments":[{{"aspect":"food","opinion":"great","sentiment":"positive"}},{{"aspect":null,"opinion":"favorite","sentiment":"positive"}},{{"aspect":null,"opinion":"relaxing","sentiment":"positive"}}]}}
+
+EXAMPLE 5
+Text: "would never go back"
+Pairs:
+- aspect: null, opinion: null, reason: "The sentence implies a sentiment toward the restaurant without stating a specific aspect or opinion."
+Output:
+{{"sentiments":[{{"aspect":null,"opinion":null,"sentiment":"negative"}}]}}
+
+EXAMPLE 6
+Text: "for starters they delivered us someone else ' s order ."
+Pairs:
+- aspect: null, opinion: null, reason: "The statement implies dissatisfaction with service, but no explicit opinion word is given."
+Output:
+{{"sentiments":[{{"aspect":null,"opinion":null,"sentiment":"negative"}}]}}
+
+EXAMPLE 7
+Text: "the portion sizes here are huge , and the sushi is good ."
+Pairs:
+- aspect: "portion sizes", opinion: "huge", reason: "The adjective \"huge\" evaluates the portion sizes."
+- aspect: "sushi", opinion: "good", reason: "The adjective \"good\" evaluates the sushi."
+Output:
+{{"sentiments":[{{"aspect":"portion sizes","opinion":"huge","sentiment":"positive"}},{{"aspect":"sushi","opinion":"good","sentiment":"positive"}}]}}
+
+EXAMPLE 8
+Text: "it is terrific , as is the value ."
+Pairs:
+- aspect: null, opinion: "terrific", reason: "The adjective \"terrific\" positively evaluates the food implicitly."
+- aspect: null, opinion: "terrific", reason: "The adjective \"terrific\" positively evaluates the value."
+Output:
+{{"sentiments":[{{"aspect": null,"opinion":"terrific","sentiment":"positive"}},{{"aspect":null,"opinion":"terrific","sentiment":"positive"}}]}}
+
+EXAMPLE 9
+Text: "bagels are ok , but be sure not to make any special requests !"
+Pairs:
+- aspect: "bagels", opinion: "ok", reason: "The adjective \"ok\" evaluates the bagels."
+- aspect: null, opinion: null, reason: "The second part implies a negative service experience without an explicit opinion."
+Output:
+{{"sentiments":[{{"aspect":"bagels","opinion":"ok","sentiment":"neutral"}},{{"aspect": null,"opinion":null,"sentiment":"negative"}}]}}
+
+EXAMPLE 10
+Text: "the place itself is beautiful the bar scene seems to be happening ."
+Pairs:
+- aspect: "place", opinion: "beautiful", reason: "The adjective \"beautiful\" evaluates the ambience of the place."
+- aspect: "bar scene", opinion: null, reason: "The phrase \"seems to be happening\" implies a positive ambience but lacks a direct opinion word."
+Output:
+{{"sentiments":[{{"aspect":"place","opinion":"beautiful","sentiment":"positive"}},{{"aspect":"bar scene","opinion":null,"sentiment":"positive"}}]}}
+
+EXAMPLE 11
+Text: "the prices are wonderfully low ."
+Pairs:
+- aspect: null, opinion: "wonderfully low", reason: "The phrase \"wonderfully low\" positively evaluates the restaurant's prices, with the aspect implied."
+Output:
+{{"sentiments":[{{"aspect":null,"opinion":"wonderfully low","sentiment":"positive"}}]}}
+
+EXAMPLE 12
+Text: "restaurant with a view"
+Pairs:
+- aspect: "view", opinion: null, reason: "The noun \"view\" specifies a location feature, but no explicit opinion word is present."
+Output:
+{{"sentiments":[{{"aspect":"view","opinion":null,"sentiment":"neutral"}}]}}
+
+EXAMPLE 13
+Text: "the sangria was pretty tasty and good on a hot muggy day ."
+Pairs:
+- aspect: "sangria", opinion: "tasty", reason: "The adjective \"tasty\" evaluates the sangria quality."
+- aspect: "sangria", opinion: "good", reason: "The adjective \"good\" also evaluates the sangria quality."
+Output:
+{{"sentiments":[{{"aspect":"sangria","opinion":"tasty","sentiment":"positive"}},{{"aspect":"sangria","opinion":"good","sentiment":"positive"}}]}}
+
+EXAMPLE 14
+Text: "drinks way over priced ."
+Pairs:
+- aspect: "drinks", opinion: "over priced", reason: "The phrase \"over priced\" evaluates the drinks' cost negatively."
+Output:
+{{"sentiments":[{{"aspect":"drinks","opinion":"over priced","sentiment":"negative"}}]}}
+
+EXAMPLE 15
+Text: "very good wine choices ."
+Pairs:
+- aspect: "wine choices", opinion: "good", reason: "The adjective \"good\" evaluates the variety of wine choices."
+Output:
+{{"sentiments":[{{"aspect":"wine choices","opinion":"good","sentiment":"positive"}}]}}
+
+EXAMPLE 16
+Text: "will absolutely visit again ."
+Pairs:
+- aspect: null, opinion: null, reason: "The sentence expresses a positive intention to revisit, but no explicit aspect or opinion word is present."
+Output:
+{{"sentiments":[{{"aspect":null,"opinion":null,"sentiment":"positive"}}]}}
+
+EXAMPLE 17
+Text: "helpful service and average price per dish $ 10 ."
+Pairs:
+- aspect: "service", opinion: "helpful", reason: "The adjective \"helpful\" evaluates the service positively."
+- aspect: "dish", opinion: "average", reason: "The adjective \"average\" evaluates the price per dish neutrally."
+Output:
+{{"sentiments":[{{"aspect":"service","opinion":"helpful","sentiment":"positive"}},{{"aspect":"dish","opinion":"average","sentiment":"neutral"}}]}}
+
+EXAMPLE 18
+Text: "everything was going good until we got our meals ."
+Pairs:
+- aspect: "meals", opinion: null, reason: "The clause implies poor meal quality once served, but no explicit opinion word appears."
+- aspect: null, opinion: "good", reason: "The adjective \"good\" positively describes the overall experience before receiving the meals."
+Output:
+{{"sentiments":[{{"aspect":"meals","opinion":null,"sentiment":"negative"}},{{"aspect":null,"opinion":"good","sentiment":"positive"}}]}}
+
+EXAMPLE 19
+Text: "the food was very mediocre."
+Pairs:
+- aspect: "food", opinion: "mediocre", reason: "The adjective \"mediocre\" evaluates the food quality."
+Output:
+{{"sentiments":[{{"aspect":"food","opinion":"mediocre","sentiment":"negative"}}]}}
+
+EXAMPLE 20
+Text: "love the atmosphere - felt like i was in paris ."
+Pairs:
+- aspect: "atmosphere", opinion: "love", reason: "The verb \"love\" positively evaluates the atmosphere."
+Output:
+{{"sentiments":[{{"aspect":"atmosphere","opinion":"love","sentiment":"positive"}}]}}
+
+{format_instructions} 

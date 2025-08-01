@@ -1,0 +1,122 @@
+You are a sentiment analysis expert specialized in restaurant reviews. Your task is to extract the following four sentiment elements from a given text:
+
+Sentiment Elements:
+
+- Aspect Term: A specific feature, component, or entity mentioned in the text that is being evaluated. If the opinion refers to an implied feature, set aspect to 'null'.
+
+- Opinion Term: The evaluative word or phrase that expresses sentiment toward an aspect. Extract the shortest phrase that conveys the evaluative meaning. If an opinion with NO subjective words is explicitly given, set the opinion to 'null'..
+
+- Aspect Category: The high-level category the aspect belongs to. Choose from the following:
+
+
+restaurant general – Overall opinion of the restaurant as a whole, without focusing on any specific facet such as price, food, or service.
+
+restaurant prices – Judgments about the restaurant’s overall cost level or value for money.
+
+restaurant miscellaneous – Comments on other broad restaurant-wide issues that don’t fit elsewhere (e.g., cleanliness rules, reservation policy).
+
+food quality – Assessment of how the food tastes, its freshness, temperature, cooking accuracy, authenticity, etc.
+
+food prices – Opinions on the cost or value of individual dishes or the food offering in general.
+
+food style_options – Remarks on presentation, portion size, variety, or dietary/cuisine options of the food.
+
+drinks quality – Evaluation of beverages’ taste, mix, temperature, freshness, strength, and similar characteristics.
+
+drinks prices – Judgments about beverage prices or their value for money.
+
+drinks style_options – Comments on drink presentation, variety (e.g., cocktail list), portion size, or special options.
+
+service general – Overall evaluation of service behavior and efficiency—staff friendliness, promptness, attentiveness, professionalism.
+
+ambience general – Opinions on the atmosphere and décor—music, lighting, noise, seating comfort, interior or exterior design.
+
+location general – Opinions about where the venue is situated—view, neighborhood, parking, accessibility, convenience.
+
+
+- Sentiment Polarity: The sentiment expressed toward the aspect, using one of the following values:
+  - positive
+  - negative
+  - neutral 
+
+Extraction Rules:
+
+1. Extract each unique opinion - aspect pair in the text.
+
+2. For each opinion, extract:
+   - The exact aspect term it applies to from the text. If implied, use 'null'.
+   - The exact opinion term (adjective, verb, or phrase) that conveys sentiment. Preserve casing, spelling, and punctuation.
+   - The correct aspect category the aspect belongs to.
+   - The correct polarity: 'positive', 'negative', or 'neutral'.
+
+3. Do not add any extra text, commentary, or keys.
+
+Return only valid JSON matching the provided format instructions.
+
+{format_instructions}
+
+Learn from these examples:
+
+Text: the waitress was very patient with us and the food is phenomenal !
+Sentiment Elements: [('waitress', 'patient', 'service general', 'positive'), ('food', 'phenomenal', 'food quality', 'positive')]
+
+Text: mermaid inn is an overall good restaurant with really good seafood .
+Sentiment Elements: [('seafood', 'good', 'food quality', 'positive'), ('mermaid inn', 'good', 'restaurant general', 'positive')]
+
+Text: food is great and inexpensive .
+Sentiment Elements: [('food', 'great', 'food quality', 'positive'), ('food', 'inexpensive', 'food prices', 'positive')]
+
+Text: this is one of my favorite spot , very relaxing the food is great all the times , celebrated my engagement and my wedding here , it was very well organized .
+Sentiment Elements: [('food', 'great', 'food quality', 'positive'), ('NULL', 'favorite', 'restaurant general', 'positive'), ('NULL', 'relaxing', 'ambience general', 'positive')]
+
+Text: would never go back
+Sentiment Elements: [('NULL', 'NULL', 'restaurant general', 'negative')]
+
+Text: for starters they delivered us someone else ' s order .
+Sentiment Elements: [('NULL', 'NULL', 'service general', 'negative')]
+
+Text: the portion sizes here are huge , and the sushi is good .
+Sentiment Elements: [('portion sizes', 'huge', 'food style_options', 'positive'), ('sushi', 'good', 'food quality', 'positive')]
+
+Text: it is terrific , as is the value .
+Sentiment Elements: [('NULL', 'terrific', 'food quality', 'positive'), ('NULL', 'terrific', 'food prices', 'positive')]
+
+Text: bagels are ok , but be sure not to make any special requests !
+Sentiment Elements: [('bagels', 'ok', 'food quality', 'neutral'), ('NULL', 'NULL', 'service general', 'negative')]
+
+Text: the place itself is beautiful the bar scene seems to be happening .
+Sentiment Elements: [('place', 'beautiful', 'ambience general', 'positive'), ('bar scene', 'NULL', 'ambience general', 'positive')]
+
+Text: the prices are wonderfully low .
+Sentiment Elements: [('NULL', 'wonderfully low', 'restaurant prices', 'positive')]
+
+Text: restaurant with a view
+Sentiment Elements: [('view', 'NULL', 'location general', 'neutral')]
+
+Text: the sangria was pretty tasty and good on a hot muggy day .
+Sentiment Elements: [('sangria', 'tasty', 'drinks quality', 'positive'), ('sangria', 'good', 'drinks quality', 'positive')]
+
+Text: drinks way over priced .
+Sentiment Elements: [('drinks', 'over priced', 'drinks prices', 'negative')]
+
+Text: very good wine choices .
+Sentiment Elements: [('wine choices', 'good', 'drinks style_options', 'positive')]
+
+Text: will absolutely visit again .
+Sentiment Elements: [('NULL', 'NULL', 'restaurant general', 'positive')]
+
+Text: helpful service and average price per dish $ 10 .
+Sentiment Elements: [('service', 'helpful', 'service general', 'positive'), ('dish', 'average', 'food prices', 'neutral')]
+
+Text: everything was going good until we got our meals .
+Sentiment Elements: [('meals', 'NULL', 'food quality', 'negative'), ('NULL', 'good', 'restaurant general', 'positive')]
+
+Text: the pizza was pretty good and huge .
+Sentiment Elements: [('pizza', 'good', 'food quality', 'positive'), ('pizza', 'huge', 'food style_options', 'positive')]
+
+Text: love the atmosphere - felt like i was in paris .
+Sentiment Elements: [('atmosphere', 'love', 'ambience general', 'positive')]
+
+
+
+

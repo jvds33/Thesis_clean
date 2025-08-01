@@ -1,0 +1,122 @@
+You are a sentiment analysis expert specialized in laptop reviews. Your task is to extract the following four sentiment elements from a given text:
+
+Sentiment Elements:
+
+- Aspect Term: A specific feature, component, or entity mentioned in the text that is being evaluated. If the opinion refers to an implied feature, set aspect to 'null'.
+
+- Opinion Term: The evaluative word or phrase that expresses sentiment toward an aspect. Extract the shortest phrase that conveys the evaluative meaning. If an opinion with NO subjective words is explicitly given, set the opinion to 'null'.
+
+- Aspect Category: The high-level category the aspect belongs to. Choose from the following:
+
+battery design_features - The laptop's battery pack that supplies power when unplugged. — Physical design, aesthetics, size/weight or special features.
+battery general - The laptop's battery pack that supplies power when unplugged. — Overall or unspecific evaluation.
+battery operation_performance - The laptop's battery pack that supplies power when unplugged. — Speed, responsiveness, stability or effectiveness during use.
+battery quality - The laptop's battery pack that supplies power when unplugged. — Build quality, durability, reliability or defects.
+
+company general - The laptop's brand or manufacturer. — Overall or unspecific evaluation.
+
+cpu general - The central processing unit (processor). — Overall or unspecific evaluation.
+cpu operation_performance - The central processing unit (processor). — Speed, responsiveness, stability or effectiveness during use.
+
+display design_features - The laptop's screen or monitor. — Physical design, aesthetics, size/weight or special features.
+display general - The laptop's screen or monitor. — Overall or unspecific evaluation.
+display operation_performance - The laptop's screen or monitor. — Speed, responsiveness, stability or effectiveness during use.
+display quality - The laptop's screen or monitor. — Build quality, durability, reliability or defects.
+display usability - The laptop's screen or monitor. — Ease of use, accessibility or user experience.
+
+fans&cooling general - The cooling system (fans, heat-pipes, heatsinks). — Overall or unspecific evaluation.
+fans&cooling operation_performance - The cooling system (fans, heat-pipes, heatsinks). — Speed, responsiveness, stability or effectiveness during use.
+fans&cooling quality - The cooling system (fans, heat-pipes, heatsinks). — Build quality, durability, reliability or defects.
+
+graphics general - Graphics subsystem or GPU. — Overall or unspecific evaluation.
+graphics operation_performance - Graphics subsystem or GPU. — Speed, responsiveness, stability or effectiveness during use.
+
+hard_disc design_features - Internal storage drives (HDD/SSD). — Physical design, aesthetics, size/weight or special features.
+hard_disc general - Internal storage drives (HDD/SSD). — Overall or unspecific evaluation.
+hard_disc operation_performance - Internal storage drives (HDD/SSD). — Speed, responsiveness, stability or effectiveness during use.
+hard_disc quality - Internal storage drives (HDD/SSD). — Build quality, durability, reliability or defects.
+
+hardware design_features - Hardware components in general (when no specific part fits). — Physical design, aesthetics, size/weight or special features.
+hardware general - Hardware components in general (when no specific part fits). — Overall or unspecific evaluation.
+hardware operation_performance - Hardware components in general (when no specific part fits). — Speed, responsiveness, stability or effectiveness during use.
+hardware quality - Hardware components in general (when no specific part fits). — Build quality, durability, reliability or defects.
+hardware usability - Hardware components in general (when no specific part fits). — Ease of use, accessibility or user experience.
+
+keyboard design_features - The keyboard (keys, layout, typing feel). — Physical design, aesthetics, size/weight or special features.
+keyboard general - The keyboard (keys, layout, typing feel). — Overall or unspecific evaluation.
+keyboard operation_performance - The keyboard (keys, layout, typing feel). — Speed, responsiveness, stability or effectiveness during use.
+keyboard quality - The keyboard (keys, layout, typing feel). — Build quality, durability, reliability or defects.
+keyboard usability - The keyboard (keys, layout, typing feel). — Ease of use, accessibility or user experience.
+
+laptop connectivity - The laptop as a whole device. — Wired or wireless connection capability and performance.
+laptop design_features - The laptop as a whole device. — Physical design, aesthetics, size/weight or special features.
+laptop general - The laptop as a whole device. — Overall or unspecific evaluation.
+laptop operation_performance - The laptop as a whole device. — Speed, responsiveness, stability or effectiveness during use.
+laptop portability - The laptop as a whole device. — Ease of carrying or using in confined spaces.
+laptop price - The laptop as a whole device. — Cost or value for money.
+laptop quality - The laptop as a whole device. — Build quality, durability, reliability or defects.
+laptop usability - The laptop as a whole device. — Ease of use, accessibility or user experience.
+
+memory design_features - System RAM (memory). — Physical design, aesthetics, size/weight or special features.
+memory general - System RAM (memory). — Overall or unspecific evaluation.
+memory operation_performance - System RAM (memory). — Speed, responsiveness, stability or effectiveness during use.
+memory usability - System RAM (memory). — Ease of use, accessibility or user experience.
+
+motherboard general - The laptop's mainboard. — Overall or unspecific evaluation.
+
+multimedia_devices design_features - Speakers, microphone, webcam and other media devices. — Physical design, aesthetics, size/weight or special features.
+multimedia_devices general - Speakers, microphone, webcam and other media devices. — Overall or unspecific evaluation.
+multimedia_devices operation_performance - Speakers, microphone, webcam and other media devices. — Speed, responsiveness, stability or effectiveness during use.
+multimedia_devices quality - Speakers, microphone, webcam and other media devices. — Build quality, durability, reliability or defects.
+
+optical_drives general - Optical disc drives (CD/DVD/Blu-ray). — Overall or unspecific evaluation.
+
+os design_features - The operating system (Windows, macOS, Linux…). — Physical design, aesthetics, size/weight or special features.
+os general - The operating system (Windows, macOS, Linux…). — Overall or unspecific evaluation.
+os operation_performance - The operating system (Windows, macOS, Linux…). — Speed, responsiveness, stability or effectiveness during use.
+os usability - The operating system (Windows, macOS, Linux…). — Ease of use, accessibility or user experience.
+
+ports connectivity - Connectivity ports (USB, HDMI, SD-card, etc.). — Wired or wireless connection capability and performance.
+ports design_features - Connectivity ports (USB, HDMI, SD-card, etc.). — Physical design, aesthetics, size/weight or special features.
+ports general - Connectivity ports (USB, HDMI, SD-card, etc.). — Overall or unspecific evaluation.
+ports operation_performance - Connectivity ports (USB, HDMI, SD-card, etc.). — Speed, responsiveness, stability or effectiveness during use.
+ports quality - Connectivity ports (USB, HDMI, SD-card, etc.). — Build quality, durability, reliability or defects.
+
+power_supply design_features - AC adapter / charger. — Physical design, aesthetics, size/weight or special features.
+power_supply general - AC adapter / charger. — Overall or unspecific evaluation.
+power_supply operation_performance - AC adapter / charger. — Speed, responsiveness, stability or effectiveness during use.
+
+shipping general - Delivery and logistics service. — Overall or unspecific evaluation.
+shipping operation_performance - Delivery and logistics service. — Speed, responsiveness, stability or effectiveness during use.
+shipping quality - Delivery and logistics service. — Build quality, durability, reliability or defects.
+
+software design_features - Applications and software in general. — Physical design, aesthetics, size/weight or special features.
+software general - Applications and software in general. — Overall or unspecific evaluation.
+software operation_performance - Applications and software in general. — Speed, responsiveness, stability or effectiveness during use.
+software quality - Applications and software in general. — Build quality, durability, reliability or defects.
+software usability - Applications and software in general. — Ease of use, accessibility or user experience.
+
+support general - Customer service and technical support. — Overall or unspecific evaluation.
+support operation_performance - Customer service and technical support. — Speed, responsiveness, stability or effectiveness during use.
+
+warranty general - Warranty terms and coverage. — Overall or unspecific evaluation.
+
+- Sentiment Polarity: The sentiment expressed toward the aspect, using one of the following values:
+  - positive
+  - negative
+  - neutral 
+
+Extraction Rules:
+
+1. Extract each unique opinion - aspect pair in the text.
+
+2. For each opinion, extract:
+   - The exact aspect term it applies to from the text. If implied, use 'null'.
+   - The exact opinion term (adjective, verb, or phrase) that conveys sentiment. Preserve casing, spelling, and punctuation.
+   - The correct aspect category the aspect belongs to.
+   - The correct polarity: 'positive', 'negative', or 'neutral'.
+
+3. Do not add any extra text, commentary, or keys.
+Return only valid JSON matching the provided format instructions.
+
+{format_instructions}
