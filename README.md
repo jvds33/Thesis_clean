@@ -1,37 +1,112 @@
-# Aspect-Based Sentiment Analysis with LangGraph
+# Multi-Agent ACOS Pipeline
 
-This repository contains a Python-based pipeline for performing Aspect-Based Sentiment Analysis (ABSA) on customer reviews. The pipeline is built using LangGraph and is designed to extract aspects, opinions, and their associated sentiments from text. It currently supports reviews for restaurants and laptops.
+This repository contains a Python-based pipeline for performing Aspect-Category-Opinion-Sentiment (ACOS) analysis on customer reviews. The pipeline uses a multi-agent architecture with voting capabilities to extract and analyze aspects, opinions, categories, and sentiments from text. It currently supports reviews for restaurants and laptops.
 
 ## Features
 
-- **Aspect Extraction**: Identifies aspect terms mentioned in the review text.
-- **Opinion Extraction**: Extracts opinion terms associated with the identified aspects.
-- **Aspect Categorization**: Classifies aspects into predefined categories.
-- **Sentiment Analysis**: Determines the sentiment (positive, negative, neutral) for each aspect-opinion pair.
-- **PDF Report Generation**: Generates a PDF report summarizing the analysis.
+- **Unified Aspect-Opinion Extraction**: Identifies aspect terms and their associated opinions from review text
+- **Category Classification**: Maps aspects to predefined domain-specific categories
+- **Sentiment Analysis**: Determines the sentiment (positive, negative, neutral) for each aspect-opinion pair
+- **Voting Mechanism**: Supports ensemble-based extraction for improved reliability
+- **Detailed Reporting**: Generates comprehensive PDF reports with analysis results and statistics
+- **Token Usage Tracking**: Optional tracking of API token usage for cost analysis
 
-## How it Works
+## Architecture
 
-The pipeline processes text through a series of steps:
+The pipeline uses three specialized agents:
 
-1.  **Extract Aspects**: Identifies the specific features or topics being discussed (e.g., "service", "pasta").
-2.  **Extract Opinions**: Finds the words that describe the sentiment towards those aspects (e.g., "slow", "delicious").
-3.  **Categorize Aspects**: Groups aspects into broader categories (e.g., "SERVICE", "FOOD").
-4.  **Determine Sentiment**: Assigns a sentiment to each aspect-opinion pair.
-5.  **Link and Check**: Consolidates the information into a final, structured output.
+1. **UnifiedExtractorAgent**: Extracts aspect-opinion pairs with explanatory reasoning
+2. **CategoryAgent**: Classifies aspects into domain-specific categories
+3. **SentimentAgent**: Determines sentiment polarity for aspect-opinion pairs
+
+Each agent can operate in either:
+- Zero-shot mode (`0shot`)
+- Few-shot mode (`20shot`) with domain-specific examples
+
+## Supported Domains
+
+### Restaurant Domain
+- Analyzes restaurant reviews
+- Categories include: food quality, service, ambience, etc.
+- Located in `extractor_rest_Voting/`
+
+### Laptop Domain
+- Analyzes laptop reviews
+- Categories include: performance, build quality, battery life, etc.
+- Located in `extractor_laptop_Voting/`
 
 ## Getting Started
 
-**From a string:**
+### Running the Pipeline
+
+Use the provided shell script to run the pipeline:
 
 ```bash
-python src/agents/run_agent_pipeline.py --domain restaurant --input "The pasta was delicious but the service was slow."
+# Process restaurant reviews
+bash scripts/run_extractor_agents.sh --domain restaurant --num-sample 3 --batch
+
+# Process laptop reviews
+bash scripts/run_extractor_agents.sh --domain laptop --num-sample 3 --batch
 ```
 
-**From a file:**
+### Command Line Options
+
+- `--domain`: Choose domain (`restaurant` or `laptop`)
+- `--num-sample`: Number of samples to process
+- `--model`: LLM model to use (`gpt-4o`, `gpt`, `deepseek-v3`, etc.)
+- `--prompt-type`: Prompt type (`0shot` or `20shot`)
+- `--batch`: Enable batch processing mode
+- `--track-tokens`: Enable token usage tracking
+
+### Interactive Mode
+
+For single review analysis:
 
 ```bash
-python src/agents/run_agent_pipeline.py --domain laptop --file path/to/your/reviews.txt --output results.json
+bash scripts/run_extractor_agents.sh --domain restaurant --input "The pasta was delicious but service was slow."
 ```
 
-This will generate a `results.json` file with the extracted information and a `results_report.pdf` with a summary of the analysis.
+### Batch Mode
+
+For processing multiple reviews:
+
+```bash
+bash scripts/run_extractor_agents.sh --domain restaurant \
+    --batch \
+    --input-file data/acos/rest16/test.txt \
+    --output-dir output_multi/restaurant \
+    --num-sample 100
+```
+
+## Output
+
+The pipeline generates:
+1. Structured JSON output with extracted ACOS quadruples
+2. Detailed PDF report with:
+   - Overall performance metrics
+   - Confusion matrices
+   - Error analysis
+   - Token usage statistics (if enabled)
+3. Token usage tracking (optional)
+
+## Example Output
+
+For the input "The pasta was delicious but service was slow":
+```json
+{
+    "text": "The pasta was delicious but service was slow",
+    "quads": [
+        ["pasta", "delicious", "food quality", "positive"],
+        ["service", "slow", "service general", "negative"]
+    ]
+}
+```
+
+## Performance Metrics
+
+The pipeline evaluates:
+- Precision, Recall, and F1 scores
+- Aspect-Opinion pair extraction accuracy
+- Category classification accuracy
+- Sentiment classification accuracy
+- Implicit aspect/opinion handling

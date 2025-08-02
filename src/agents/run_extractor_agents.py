@@ -411,8 +411,8 @@ def run_acos_pipeline(text: str, domain: Literal["restaurant", "laptop"],
     # Load the appropriate extractor agent based on domain
     if domain == "restaurant":
         from src.agents.extractor_agents.extractor_rest_Voting.unified_extractor import UnifiedExtractorAgent
-        from src.agents.extractor_agents.extractor_rest_Voting.category_classifier import CategoryClassifierAgent
-        from src.agents.extractor_agents.extractor_rest_Voting.sentiment_classifier import SentimentClassifierAgent
+        from src.agents.extractor_agents.extractor_rest_Voting.category import CategoryAgent
+        from src.agents.extractor_agents.extractor_rest_Voting.sentiment import SentimentAgent
     else:  # laptop
         try:
             from src.agents.extractor_agents.extractor_laptop_Voting.unified_extractor import UnifiedExtractorAgent
@@ -427,8 +427,8 @@ def run_acos_pipeline(text: str, domain: Literal["restaurant", "laptop"],
     
     # Create the appropriate agent based on domain
     if domain == "restaurant":
-        category_agent = CategoryClassifierAgent(llm=category_llm)
-        sentiment_agent = SentimentClassifierAgent(llm=sentiment_llm)
+        category_agent = CategoryAgent(llm=category_llm)
+        sentiment_agent = SentimentAgent(llm=sentiment_llm)
     else:  # laptop
         category_agent = CategoryAgent(llm=category_llm)
         sentiment_agent = SentimentAgent(llm=sentiment_llm)
