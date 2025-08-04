@@ -32,7 +32,8 @@ def generate_report(run_data):
         # Ensure directories exist
         os.makedirs(os.path.dirname(json_filepath), exist_ok=True)
         os.makedirs(os.path.dirname(pdf_filepath), exist_ok=True)
-    else:
+    
+    if 'output_paths' not in run_data:
         # Use default naming and directory
         pdf_filename = f"report_{domain}_{model_name}_{shot}_{timestamp}.pdf"
         json_filename = f"summary_{domain}_{model_name}_{shot}_{timestamp}.json"
@@ -315,7 +316,7 @@ class PDFReport(FPDF):
                 self.cell(col_widths[4], 8, f"${totals.get('cost', 0):.4f}", 1, 0, 'R')
                 self.cell(col_widths[5], 8, "", 1, 0, 'C')
                 self.ln()
-            
+        
         else:
             # Fallback to simple display if detailed data not available
             rows = [
@@ -371,7 +372,7 @@ class PDFReport(FPDF):
             self.cell(60, 10, str(item['errors']), 1, 0, 'C')
             self.ln()
         self.ln(5)
-
+        
         # Relative errors
         self.set_font('Helvetica', 'B', 12)
         self.cell(0, 10, "Relative Error Rates (>=10 instances)", 0, 1, 'L')
@@ -395,7 +396,7 @@ class PDFReport(FPDF):
         if not case_studies:
             self.chapter_body("No qualitative examples provided.")
             return
-
+    
         for i, case in enumerate(case_studies):
             self.set_font('Helvetica', 'B', 12)
             self.cell(0, 10, f"Example {i+1}", 0, 1, 'L')

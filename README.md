@@ -1,112 +1,91 @@
-# Multi-Agent ACOS Pipeline
+# ACOS Multi-Agent System
 
-This repository contains a Python-based pipeline for performing Aspect-Category-Opinion-Sentiment (ACOS) analysis on customer reviews. The pipeline uses a multi-agent architecture with voting capabilities to extract and analyze aspects, opinions, categories, and sentiments from text. It currently supports reviews for restaurants and laptops.
+A Multi-Agent System for Aspect-Category-Opinion-Sentiment (ACOS) extraction from product reviews, following the Gaia methodology.
 
-## Features
+## Overview
 
-- **Unified Aspect-Opinion Extraction**: Identifies aspect terms and their associated opinions from review text
-- **Category Classification**: Maps aspects to predefined domain-specific categories
-- **Sentiment Analysis**: Determines the sentiment (positive, negative, neutral) for each aspect-opinion pair
-- **Voting Mechanism**: Supports ensemble-based extraction for improved reliability
-- **Detailed Reporting**: Generates comprehensive PDF reports with analysis results and statistics
-- **Token Usage Tracking**: Optional tracking of API token usage for cost analysis
+This repository implements a Multi-Agent System for Aspect-based Sentiment Analysis that extracts complete ACOS quadruples from product reviews. The system follows the Gaia methodology, treating the MAS as an organized society of roles with a step-wise set of artifacts.
 
-## Architecture
+### System Architecture
 
-The pipeline uses three specialized agents:
+The system consists of three specialized agents:
 
-1. **UnifiedExtractorAgent**: Extracts aspect-opinion pairs with explanatory reasoning
-2. **CategoryAgent**: Classifies aspects into domain-specific categories
-3. **SentimentAgent**: Determines sentiment polarity for aspect-opinion pairs
+1. **Aspect-Opinion Extractor Agent**: Identifies aspect-opinion pairs from review text using ensemble voting with multiple LLM calls.
+   - Exposes `extract_pairs` service
+   - Implements `InitiateExtraction`, `VotingConsensus`, and `ProvideExtractionReasoning` protocols
 
-Each agent can operate in either:
-- Zero-shot mode (`0shot`)
-- Few-shot mode (`20shot`) with domain-specific examples
+2. **Sentiment Classifier Agent**: Classifies sentiment polarity (positive/negative/neutral) for each aspect-opinion pair.
+   - Exposes `classify_sentiment` service
+   - Implements `ClassifySentiment` and `ContextualAnalysis` protocols
 
-## Supported Domains
+3. **Category Classifier Agent**: Assigns aspect categories from a predefined taxonomy.
+   - Exposes `classify_category` service
+   - Implements `ClassifyCategory` and `TaxonomyMapping` protocols
 
-### Restaurant Domain
-- Analyzes restaurant reviews
-- Categories include: food quality, service, ambience, etc.
-- Located in `extractor_rest_Voting/`
+The pipeline follows an EXTRACT-CLASSIFY structure with a single extraction phase followed by parallel classifications and a final merge in the coordinator.
 
-### Laptop Domain
-- Analyzes laptop reviews
-- Categories include: performance, build quality, battery life, etc.
-- Located in `extractor_laptop_Voting/`
+## Setup
 
-## Getting Started
+### Environment Setup
+
+1. Install the required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Create a `.env` file in the root directory with your Azure OpenAI API credentials:
+   ```
+   # Azure OpenAI API Configuration
+   AZURE_OPENAI_API_KEY=your_azure_openai_api_key_here
+   AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
+   OPENAI_API_VERSION=2025-01-01-preview
+   
+   # OpenAI Model Deployments
+   AZURE_OPENAI_DEPLOYMENT_NAME_CHAT=gpt-4o-mini
+   AZURE_OPENAI_GPT4O_DEPLOYMENT_NAME=gpt-4o
+   AZURE_OPENAI_GPT4O_MINI_DEPLOYMENT_NAME=gpt-4o-mini
+   ```
+
+3. You can use the provided `env_template.txt` as a starting point.
+
+## Usage
 
 ### Running the Pipeline
 
-Use the provided shell script to run the pipeline:
+The system supports both restaurant and laptop domains:
 
 ```bash
-# Process restaurant reviews
-bash scripts/run_extractor_agents.sh --domain restaurant --num-sample 3 --batch
+# Run the extractor agents pipeline in batch mode
+bash scripts/run_extractor_agents.sh --domain restaurant --num-sample 10 --batch
 
-# Process laptop reviews
-bash scripts/run_extractor_agents.sh --domain laptop --num-sample 3 --batch
+# Run in interactive mode with custom input
+bash scripts/run_extractor_agents.sh --domain laptop --input "The battery life is excellent but the keyboard is uncomfortable."
 ```
 
-### Command Line Options
-
-- `--domain`: Choose domain (`restaurant` or `laptop`)
-- `--num-sample`: Number of samples to process
-- `--model`: LLM model to use (`gpt-4o`, `gpt`, `deepseek-v3`, etc.)
-- `--prompt-type`: Prompt type (`0shot` or `20shot`)
-- `--batch`: Enable batch processing mode
-- `--track-tokens`: Enable token usage tracking
-
-### Interactive Mode
-
-For single review analysis:
+### Running the Baseline LLM Inference
 
 ```bash
-bash scripts/run_extractor_agents.sh --domain restaurant --input "The pasta was delicious but service was slow."
+# For restaurant domain
+bash scripts/run_llm_rest.sh
+
+# For laptop domain
+bash scripts/run_llm_laptop.sh
 ```
 
-### Batch Mode
+### Testing
 
-For processing multiple reviews:
+Run the test suite to verify the pipeline's functionality:
 
 ```bash
-bash scripts/run_extractor_agents.sh --domain restaurant \
-    --batch \
-    --input-file data/acos/rest16/test.txt \
-    --output-dir output_multi/restaurant \
-    --num-sample 100
+python src/tests/run_test_with_output.py
 ```
 
-## Output
+## Implementation Details
 
-The pipeline generates:
-1. Structured JSON output with extracted ACOS quadruples
-2. Detailed PDF report with:
-   - Overall performance metrics
-   - Confusion matrices
-   - Error analysis
-   - Token usage statistics (if enabled)
-3. Token usage tracking (optional)
+The implementation follows the Gaia methodology's design phase:
 
-## Example Output
+1. **Agent Model**: Maps roles to executable agent types
+2. **Services Model**: Exposes each agent's public API
+3. **Acquaintance Model**: Depicts mandatory communication links
 
-For the input "The pasta was delicious but service was slow":
-```json
-{
-    "text": "The pasta was delicious but service was slow",
-    "quads": [
-        ["pasta", "delicious", "food quality", "positive"],
-        ["service", "slow", "service general", "negative"]
-    ]
-}
-```
-
-## Performance Metrics
-
-The pipeline evaluates:
-- Precision, Recall, and F1 scores
-- Aspect-Opinion pair extraction accuracy
-- Category classification accuracy
-- Sentiment classification accuracy
-- Implicit aspect/opinion handling
+The system uses a fan-out architecture where the extractor agent communicates with both classifier agents, while the classifiers themselves are purely reactive.

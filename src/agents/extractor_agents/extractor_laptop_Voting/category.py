@@ -19,9 +19,9 @@ import os
 import logging
 
 # --- V4 ---
-# Use the proven, working API from the llms directory
+# Use the proven, working API from the baseline directory
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from llms.api import llm_chat
+from baseline.api import llm_chat
 
 # Import category definitions from the project
 try:
@@ -98,6 +98,10 @@ class CategoryAgent:
             logger.error(f"Error loading prompt file: {e}")
             raise
         
+    def classify_category(self, state):
+        """Classify categories for aspect-opinion pairs."""
+        return self.run(state)
+        
     def run(self, state):
         """Run the category classification agent."""
         if 'all_pairs' not in state or 'text' not in state:
@@ -127,31 +131,38 @@ class CategoryAgent:
             state['categorized_pairs'] = []
             return state
         
-        try:
-            system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
-            human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], aspects_with_context=aspects_with_context)
+        for attempt in range(2):  # Allow one retry
+            try:
+                system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
+                human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], aspects_with_context=aspects_with_context)
 
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": human_message}
-            ]
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": human_message}
+                ]
 
-            # Use the working llm_chat function with token tracking
-            raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
-            
-            # Store token usage for cost calculation
-            if usage:
-                if not hasattr(self, 'token_usage'):
-                    self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
-                self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
-                self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
+                # Use the working llm_chat function with token tracking
+                raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
+                
+                # Store token usage for cost calculation
+                if usage:
+                    if not hasattr(self, 'token_usage'):
+                        self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+                    self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
+                    self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
 
-            result = self.parser.parse(raw_response)
+                result = self.parser.parse(raw_response)
 
-            state['categorized_pairs'] = [item.dict() for item in result.categorized_pairs]
+                state['categorized_pairs'] = [item.dict() for item in result.categorized_pairs]
+                return state  # Success, exit the loop and return
 
-        except Exception as e:
-            logger.error(f"Error in category classification: {e}")
-            state['categorized_pairs'] = []
+            except Exception as e:
+                logger.error(f"Error in category classification (Attempt {attempt + 1}): {e}")
+                if attempt == 0:
+                    logger.info("Retrying category classification...")
+                    continue  # Go to next attempt
         
+        # If both attempts fail
+        logger.error("Both attempts for category classification failed.")
+        state['categorized_pairs'] = []
         return state 

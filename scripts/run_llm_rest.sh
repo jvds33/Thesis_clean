@@ -48,7 +48,7 @@ mkdir -p $OUT_DIR
 
 
 # Run inference
-python -u llms/infer.py \
+python -u baseline/infer.py \
     --data_path "../data/" \
     --dataset $DATA \
     --output_dir $OUT_DIR \
@@ -71,11 +71,11 @@ python -u llms/infer.py \
 if [ $? -eq 0 ]; then
     echo "Inference completed successfully. Generating report..."
     # Generate report
-    python -u llms/report_generator.py $OUT_DIR/${DATA}_${PROMPT_TYPE}_predictions.json
+    python -u baseline/report_generator.py $OUT_DIR/${DATA}_${PROMPT_TYPE}_predictions.json
     
     # Calculate and display cost
     if [ -f "$OUT_DIR/token_usage.json" ]; then
-        python ../cost_calculator.py "$OUT_DIR/token_usage.json" "$MODEL"
+        python ../src/cost_calculator.py "$OUT_DIR/token_usage.json" "$MODEL"
     else
         echo "Warning: Token usage data not found. Cost calculation skipped."
     fi

@@ -10,50 +10,37 @@ Output state keys added/overwritten:
 • categorized_pairs: List[Dict[str, str]]  # List of {"aspect": "...", "opinion": "...", "category": "..."}
 """
 
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, field_validator
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import PydanticOutputParser
-from pydantic import BaseModel, Field, validator
-from typing import Dict, List
+import logging
 import sys
 import os
-import logging
 
-# --- V4 ---
-# Use the proven, working API from the llms directory
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from llms.api import llm_chat
-
-# Import category definitions from the project
-try:
-    from src.categories import VALID_RESTAURANT_CATEGORIES  # type: ignore
-except ModuleNotFoundError:
-    # Fallback when 'src' is not a package (e.g. running as script)
-    from categories import VALID_RESTAURANT_CATEGORIES  # type: ignore
+# Add project root to path to allow imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+from src.baseline.api import llm_chat
 
 logger = logging.getLogger(__name__)
 
-# Alias variable for readability later in the class
-VALID_CATEGORIES = VALID_RESTAURANT_CATEGORIES
+class CategoryPair(BaseModel):
+    aspect: Optional[str] = None
+    opinion: Optional[str] = None
+    category: Optional[str] = None
 
-class AspectOpinionCategory(BaseModel):
-    aspect: str = Field(description="The aspect term, or 'null' for implicit aspects")
-    opinion: str = Field(description="The opinion phrase/word about this aspect, or 'null' if no explicit opinion")
-    category: str = Field(description="The category label for this aspect-opinion pair")
-    
-    @validator('aspect', pre=True)
-    def validate_aspect(cls, v):
-        return "null" if v is None else str(v)
-    
-    @validator('opinion', pre=True)
-    def validate_opinion(cls, v):
-        return "null" if v is None else str(v)
+    @field_validator('aspect', 'opinion', mode='before')
+    def convert_none_to_null(cls, v: Optional[str]) -> str:
+        """Convert None values to 'null' string."""
+        return "null" if v is None else v
 
 class CategoryClassificationResponse(BaseModel):
-    categorized_pairs: List[AspectOpinionCategory] = Field(description="List of aspect-opinion pairs with their categories")
+    categorized_pairs: List[CategoryPair]
 
 class CategoryAgent:
-    def __init__(self, llm=None, model="gpt-4o", prompt_type="fewshot"):
-        """Initialize the Category classification agent with a language model."""
+    def __init__(self, llm=None, model="gpt-4o", prompt_type="0shot"):
+        """Initialize the Category Classification agent."""
+        self.llm = llm
         self.model_name = model.lower()
         self.prompt_type = prompt_type
         
@@ -99,6 +86,10 @@ class CategoryAgent:
             logger.error(f"Error loading prompt file: {e}")
             raise
 
+    def classify_category(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Classify the category for each aspect-opinion pair."""
+        return self.run(state)
+        
     def run(self, state):
         """Run the category classification agent."""
         if 'all_pairs' not in state or 'text' not in state:
@@ -127,32 +118,39 @@ class CategoryAgent:
             logger.info("No aspect-opinion pairs to categorize.")
             state['categorized_pairs'] = []
             return state
+        
+        for attempt in range(2):  # Allow one retry
+            try:
+                system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
+                human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], aspects_with_context=aspects_with_context)
 
-        try:
-            system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
-            human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], aspects_with_context=aspects_with_context)
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": human_message}
+                ]
 
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": human_message}
-            ]
+                # Use the working llm_chat function with token tracking
+                raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
+                
+                # Store token usage for cost calculation
+                if usage:
+                    if not hasattr(self, 'token_usage'):
+                        self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+                    self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
+                    self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
 
-            # Use the working llm_chat function with token tracking
-            raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
-            
-            # Store token usage for cost calculation
-            if usage:
-                if not hasattr(self, 'token_usage'):
-                    self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
-                self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
-                self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
+                result = self.parser.parse(raw_response)
 
-            result = self.parser.parse(raw_response)
+                state['categorized_pairs'] = [item.model_dump() for item in result.categorized_pairs]
+                return state  # Success, exit the loop and return
 
-            state['categorized_pairs'] = [item.dict() for item in result.categorized_pairs]
-
-        except Exception as e:
-            logger.error(f"Error in category classification: {e}")
-            state['categorized_pairs'] = []
-
+            except Exception as e:
+                logger.error(f"Error in category classification (Attempt {attempt + 1}): {e}")
+                if attempt == 0:
+                    logger.info("Retrying category classification...")
+                    continue  # Go to next attempt
+        
+        # If both attempts fail
+        logger.error("Both attempts for category classification failed.")
+        state['categorized_pairs'] = []
         return state 

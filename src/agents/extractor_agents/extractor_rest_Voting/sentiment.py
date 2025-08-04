@@ -18,14 +18,14 @@ import logging
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Literal
+from typing import List, Dict, Optional, Literal, Any
 import logging
 from dotenv import load_dotenv
 
 # --- V4 ---
-# Use the proven, working API from the llms directory
+# Use the proven, working API from the baseline directory
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from llms.api import llm_chat
+from baseline.api import llm_chat
 
 # Load environment variables from the root .env file
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', '.env')
@@ -33,17 +33,18 @@ load_dotenv(dotenv_path=dotenv_path)
 
 logger = logging.getLogger(__name__)
 
-class SentimentItem(BaseModel):
-    aspect: Optional[str] = Field(description="The aspect term, or None for implicit aspects")
-    opinion: Optional[str] = Field(description="The opinion phrase/word about this aspect, or None if no explicit opinion")
-    sentiment: Literal["positive", "negative", "neutral"] = Field(description="The sentiment polarity")
+class SentimentPair(BaseModel):
+    aspect: Optional[str] = None
+    opinion: Optional[str] = None
+    sentiment: Literal["positive", "negative", "neutral"] = "neutral"
 
 class SentimentClassificationResponse(BaseModel):
-    sentiments: List[SentimentItem] = Field(description="List of aspect-opinion pairs with their sentiment classification")
+    sentiments: List[SentimentPair]
 
 class SentimentAgent:
-    def __init__(self, llm=None, model="gpt-4o", prompt_type="fewshot"):
-        """Initialize the Sentiment classification agent with a language model."""
+    def __init__(self, llm=None, model="gpt-4o", prompt_type="0shot"):
+        """Initialize the Sentiment Classification agent."""
+        self.llm = llm
         self.model_name = model.lower()
         self.prompt_type = prompt_type
         
@@ -71,7 +72,7 @@ class SentimentAgent:
         """Load the system prompt from the txt file."""
         # Get the directory of the current file
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        
+
         if self.prompt_type in ["zeroshot", "0shot"]:
             prompt_file_name = "sentiment_prompt_0shot.txt"
         else:
@@ -89,6 +90,10 @@ class SentimentAgent:
         except Exception as e:
             logger.error(f"Error loading prompt file: {e}")
             raise
+
+    def classify_sentiment(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Classify sentiment for aspect-opinion pairs."""
+        return self.run(state)
         
     def run(self, state):
         """
@@ -113,7 +118,7 @@ class SentimentAgent:
                 aspect = pair.get('aspect')
                 opinion = pair.get('opinion')
                 reason = pair.get('reason', '')
-                key = (str(aspect).lower().strip() if aspect else 'null', str(opinion).lower().strip() if opinion else 'null')
+                key = (self._normalize_key(aspect), self._normalize_key(opinion))
                 pair_reasons[key] = reason
 
         # Format the opinions for the prompt, including the reasons
@@ -121,7 +126,7 @@ class SentimentAgent:
         for pair in state['all_pairs']:
             aspect = pair.get('aspect')
             opinion = pair.get('opinion')
-            key = (str(aspect).lower().strip() if aspect else 'null', str(opinion).lower().strip() if opinion else 'null')
+            key = (self._normalize_key(aspect), self._normalize_key(opinion))
             reason = pair_reasons.get(key, 'No specific reason provided.')
             opinions_with_reasons += f"- Aspect: {aspect}, Opinion: {opinion} (Reason: {reason})\n"
 
@@ -130,33 +135,40 @@ class SentimentAgent:
             state['sentiments'] = []
             return state
 
-        try:
-            system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
-            human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], opinions_with_reasons=opinions_with_reasons, lang=lang)
+        for attempt in range(2):  # Allow one retry
+            try:
+                system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
+                human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], opinions_with_reasons=opinions_with_reasons, lang=lang)
 
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": human_message}
-            ]
-            
-            # Use the working llm_chat function with token tracking
-            raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
-            
-            # Store token usage for cost calculation
-            if usage:
-                if not hasattr(self, 'token_usage'):
-                    self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
-                self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
-                self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": human_message}
+                ]
+                
+                # Use the working llm_chat function with token tracking
+                raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
+                
+                # Store token usage for cost calculation
+                if usage:
+                    if not hasattr(self, 'token_usage'):
+                        self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+                    self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
+                    self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
 
-            result = self.parser.parse(raw_response)
-            
-            state['sentiments'] = [item.dict() for item in result.sentiments]
-            
-        except Exception as e:
-            logger.error(f"Error in sentiment classification: {e}")
-            state['sentiments'] = [] # Ensure the key exists even on failure
-            
+                result = self.parser.parse(raw_response)
+                
+                state['sentiments'] = [item.model_dump() for item in result.sentiments]
+                return state  # Success, exit the loop and return
+                
+            except Exception as e:
+                logger.error(f"Error in sentiment classification (Attempt {attempt + 1}): {e}")
+                if attempt == 0:
+                    logger.info("Retrying sentiment classification...")
+                    continue
+        
+        # If both attempts fail
+        logger.error("Both attempts for sentiment classification failed.")
+        state['sentiments'] = [] # Ensure the key exists even on failure
         return state
         
     def _normalize_key(self, value):

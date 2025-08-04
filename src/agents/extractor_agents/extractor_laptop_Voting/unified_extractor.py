@@ -15,6 +15,10 @@ import difflib
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
+import copy
+from .category import CategoryAgent
+from .sentiment import SentimentAgent
 
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import PydanticOutputParser
@@ -24,9 +28,10 @@ from typing import List, Dict, Optional
 # --- V4 ---
 # Use the proven, working API from the llms directory
 import sys
-# Add src to path to allow importing from llms
+# Add src to path to allow importing from baseline
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from llms.api import llm_chat, reset_api_logging_for_sample
+from baseline.api import llm_chat, reset_api_logging_for_sample
+from src.agents.validation import audit_logger, ValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -37,11 +42,24 @@ class AspectOpinionPair(BaseModel):
     reason: str = Field(description="A brief one-sentence explanation of why this aspect-opinion pair is present in the text.")
 
 class ExtractionResponse(BaseModel):
-    pairs: List[AspectOpinionPair] = Field(description="List of aspect-opinion pairs with reasoning")
+    extracted_pairs: List[AspectOpinionPair] = Field(description="List of aspect-opinion pairs with reasoning")
 
 class UnifiedExtractorAgent:
-    def __init__(self, llm=None, ensemble_size=1, temperature=0.0, parallel=True, model="gpt-4o", prompt_type="20shot"):
-        """Initialize the Unified Extractor agent with Agent Forest voting capabilities."""
+    def __init__(self, llm=None, model="gpt-4o", prompt_type="fewshot", ensemble_size=1, temperature=0.0, parallel=True, category_agent: CategoryAgent = None, sentiment_agent: SentimentAgent = None):
+        """
+        Initialize the Unified Extractor agent.
+        
+        Args:
+            llm: Language model instance.
+            model: Name of the model to use.
+            prompt_type: Type of prompt to use ('zeroshot' or 'fewshot').
+            ensemble_size: Number of voters for ensemble extraction.
+            temperature: Temperature for LLM sampling.
+            parallel: Whether to run voters in parallel.
+            category_agent: An instance of CategoryAgent.
+            sentiment_agent: An instance of SentimentAgent.
+        """
+        self.llm = llm
         self.model_name = model.lower()
         self.prompt_type = prompt_type
         
@@ -49,7 +67,10 @@ class UnifiedExtractorAgent:
         self.ensemble_size = ensemble_size
         self.temperature = temperature
         self.parallel = parallel
+        self.category_agent = category_agent
+        self.sentiment_agent = sentiment_agent
         
+        # Set up output parser
         self.parser = PydanticOutputParser(pydantic_object=ExtractionResponse)
         
         # Load the prompt from file
@@ -189,16 +210,16 @@ class UnifiedExtractorAgent:
                 parsed_response = self.parser.parse(raw_response)
 
                 # Validate terms and retry if necessary - but only if ensemble_size > 1
-                if self.ensemble_size > 1 and self._needs_retry(parsed_response.pairs, text):
+                if self.ensemble_size > 1 and self._needs_retry(parsed_response.extracted_pairs, text):
                     logger.warning(f"Voter {voter_id}, Attempt {attempt+1}: Bad extraction, retrying...")
                     current_prompt = self.retry_prompt # Switch to retry prompt
                     if attempt == 0: continue # Continue to next attempt in the loop
 
                 # Apply fallback fixes only if ensemble_size > 1, otherwise return as is
                 if self.ensemble_size > 1:
-                    final_pairs = self._apply_fallback_fixes(parsed_response.pairs, text)
+                    final_pairs = self._apply_fallback_fixes(parsed_response.extracted_pairs, text)
                 else:
-                    final_pairs = parsed_response.pairs
+                    final_pairs = parsed_response.extracted_pairs
 
                 return [p.dict() for p in final_pairs]
 
@@ -366,8 +387,12 @@ class UnifiedExtractorAgent:
         print("\n❌ Voting failed at all levels. No consensus found.")
         return []
 
-    def run(self, state):
-        """Run the agent."""
+    def extract_pairs(self, state):
+        """
+        Extract aspect-opinion pairs from the text in the state.
+        This method orchestrates the full extraction and classification pipeline.
+        """
+        review_id = state.get('review_id', 'unknown')
         text = state.get('text')
         if not text:
             raise ValueError("Input state must contain a 'text' key")
@@ -376,6 +401,17 @@ class UnifiedExtractorAgent:
             # Main path: extraction with voting
             winning_pairs = self._extract_with_voting(text)
             state['extracted_pairs'] = winning_pairs
+            
+            # Log successful extraction
+            audit_logger.log_operation(
+                operation="extraction_voting",
+                review_id=review_id,
+                agent="unified_extractor",
+                input_data={"text": text[:100]},
+                output_data={"pairs_count": len(winning_pairs)},
+                success=True
+            )
+            
         except Exception as e:
             logger.warning(f"Agent Forest voting failed, falling back to single extraction. Error: {e}")
             
@@ -384,8 +420,81 @@ class UnifiedExtractorAgent:
                 # Use the same extraction logic as a single voter
                 single_extraction_result = self._make_single_extraction(text, voter_id=0)
                 state['extracted_pairs'] = single_extraction_result
+                
+                # Log fallback extraction
+                audit_logger.log_operation(
+                    operation="extraction_fallback",
+                    review_id=review_id,
+                    agent="unified_extractor",
+                    input_data={"text": text[:100]},
+                    output_data={"pairs_count": len(single_extraction_result)},
+                    success=True,
+                    metadata={"fallback_reason": str(e)}
+                )
+                
             except Exception as e2:
                 logger.warning(f"Fallback extraction also failed, defaulting to empty list. Error: {e2}")
                 state['extracted_pairs'] = []
+                
+                # Log extraction failure
+                audit_logger.log_operation(
+                    operation="extraction_error",
+                    review_id=review_id,
+                    agent="unified_extractor",
+                    input_data={"text": text[:100]},
+                    output_data="complete_failure",
+                    success=False,
+                    error_msg=str(e2)
+                )
         
-        return state 
+        # Add the extracted pairs to state for downstream agents
+        state['all_pairs'] = []
+        for pair in state.get('extracted_pairs', []):
+            aspect = pair.get('aspect')
+            opinion = pair.get('opinion')
+            
+            if aspect is None:
+                aspect = "null"
+            if opinion is None:
+                opinion = "null"
+                
+            state['all_pairs'].append({
+                'aspect': aspect,
+                'opinion': opinion
+            })
+
+        # --- Start of Parallel Classification (Orchestrated by Extractor) ---
+        if self.category_agent and self.sentiment_agent:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                state_for_classifiers = copy.deepcopy(state)
+                
+                # Use the updated method names for consistency
+                future_category = executor.submit(self.category_agent.classify_category, state_for_classifiers)
+                future_sentiment = executor.submit(self.sentiment_agent.classify_sentiment, state_for_classifiers)
+
+                category_result_state = future_category.result()
+                sentiment_result_state = future_sentiment.result()
+
+            # Merge results back into the state
+            state['categorized_pairs'] = category_result_state.get('categorized_pairs', [])
+            state['sentiments'] = sentiment_result_state.get('sentiments', [])
+            
+            # Log classification results
+            audit_logger.log_operation(
+                operation="parallel_classification",
+                review_id=review_id,
+                agent="unified_extractor",
+                input_data={"pairs_count": len(state.get('extracted_pairs', []))},
+                output_data={
+                    "categorized_count": len(state.get('categorized_pairs', [])),
+                    "sentiment_count": len(state.get('sentiments', []))
+                },
+                success=True
+            )
+        # --- End of Parallel Classification ---
+
+        return state
+    
+    def run(self, state):
+        """Legacy method for backward compatibility."""
+        return self.extract_pairs(state) 

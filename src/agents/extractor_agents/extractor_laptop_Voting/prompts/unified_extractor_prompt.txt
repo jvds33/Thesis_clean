@@ -14,9 +14,9 @@ Your task is to extract the following three elements from the input text:
 
 EXTRACTION RULES:
 1. Identify every unique opinion in the text.
-2. For each opinion, output a tuple in this order: (aspect term, opinion term, reason).
-3. Return the tuples as a Python-style list, always include the aspect and opinion, null if not present.
-4. Do not add any extra text, commentary, or keys.
+2. For each opinion, create an object with "aspect", "opinion", and "reason" fields.
+3. Return all objects in an "extracted_pairs" array within a JSON object.
+4. Do not add any extra text, commentary, or keys outside the required structure.
 
 Return only valid JSON matching the provided format instructions.
 
@@ -24,154 +24,154 @@ Return only valid JSON matching the provided format instructions.
 EXAMPLE 1
 Text: this asus chromebook c302ca does not skip a beat .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": "asus chromebook c302ca", "opinion": null, "reason": "The positive sentiment evaluates the overall performance of the 'asus chromebook c302ca' despite no explicit opinion word being used."}}
-]
+]}}
 
 EXAMPLE 2
 Text: this is exactly what i needed .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": null, "opinion": null, "reason": "The positive sentiment reflects satisfaction with the product in general, though no specific aspect or opinion word is given."}}
-]
+]}}
 
 EXAMPLE 3
 Text: i have been using this notebook for a month and i absolutely love it !
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": "notebook", "opinion": "love", "reason": "The opinion \"love\" evaluates the notebook positively."}}
-]
+]}}
 
 EXAMPLE 4
 Text: runs good , very poor battery life .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": null, "opinion": "good", "reason": "The opinion \"good\" evaluates an implied aspect of the laptop's performance."}},
   {{"aspect": "battery life", "opinion": "poor", "reason": "The opinion \"poor\" evaluates the battery life negatively."}}
-]
+]}}
 
 EXAMPLE 5
 Text: it looks great as design , fast , but this 2 issues make it the worst buy of the past 10 years for me .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": null, "opinion": "great", "reason": "The opinion \"great\" evaluates an implied aspect of the laptop's design."}},
   {{"aspect": null, "opinion": "fast", "reason": "The opinion \"fast\" evaluates an implied aspect of the laptop's performance."}},
   {{"aspect": null, "opinion": "worst", "reason": "The opinion \"worst\" evaluates the overall experience with the laptop negatively."}}
-]
+]}}
 
 EXAMPLE 6
 Text: for the price you can ' t beat a chromebook .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": "chromebook", "opinion": null, "reason": "The positive sentiment implies high value for the chromebook's price, though no explicit opinion word is used."}}
-]
+]}}
 
 EXAMPLE 7
 Text: screen is a bit small for me .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": "screen", "opinion": "small", "reason": "The opinion \"small\" evaluates the screen size negatively."}}
-]
+]}}
 
 EXAMPLE 8
 Text: worked as it should .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": null, "opinion": null, "reason": "The statement describes expected performance, with a neutral sentiment and no explicit aspect or opinion word."}}
-]
+]}}
 
 EXAMPLE 9
 Text: so one star off for the keyboard .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": "keyboard", "opinion": null, "reason": "The negative sentiment toward the keyboard is implied by the reduced rating, though no explicit opinion word is used."}}
-]
+]}}
 
 EXAMPLE 10
 Text: computer looked excellent .
 Pairs:
-[
+{{"extracted_pairs": [
   {{"aspect": "computer", "opinion": "excellent", "reason": "The opinion \"excellent\" evaluates the computer's appearance positively."}}
-]
+]}}
 
 EXAMPLE 11
 
 Text: the replacement i got was much better , but still too slow for my expectations .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "replacement", "opinion": "slow", "reason": "The adjective "slow" evaluates the replacement’s speed and quality negatively."}}
-]
+]}}
 
 EXAMPLE 12  
 
 Text: i just find the battery draining too quickly in my opinion .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "battery", "opinion": null, "reason": "The clause reports rapid battery drain, implying poor performance, but no explicit opinion word is used."}}
-]
+]}}
 
 EXAMPLE 13
 
 Text: touch screen is really responsive .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "touch screen", "opinion": "responsive", "reason": "The adjective \"responsive\" evaluates the touch screen’s operational performance positively."}}
-]
+]}}
 
 EXAMPLE 14
 
 Text: good display .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "display", "opinion": "good", "reason": "The adjective \"good\" evaluates the display in a positive, general way."}}
-]
+]}}
 
 EXAMPLE 15
 
 Text: after 6 months my eyboard key is not function very well .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "eyboard key", "opinion": null, "reason": "The sentence reports a malfunctioning key, indicating poor keyboard performance without an explicit opinion word."}}
-]
+]}}
 
 EXAMPLE 16
 
 Text: cons – no light to indicate caps lock .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "caps lock", "opinion": "cons", "reason": "The word \"cons\" marks a negative evaluation of the caps-lock indicator’s design feature."}}
-]
+]}}
 
 EXAMPLE 17
 
 Text: the boot up is fast
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "boot up", "opinion": "fast", "reason": "The adjective \"fast\" evaluates the operating system’s boot-up performance positively."}}
-]
+]}}
 
 EXAMPLE 18
 
 Text: the shame of it is knowing it took me 15 minutes and $12 to fix it and acer wanted to rob me of $170 just to look at it .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "acer", "opinion": null, "reason": "The sentence conveys dissatisfaction with Acer’s support cost, but no explicit opinion word appears."}}
-]
+]}}
 
 EXAMPLE 19
 
 Text: next , is that the track pad is insanely wobbly .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "track pad", "opinion": "wobbly", "reason": "The adjective \"wobbly\" negatively evaluates the track-pad’s hardware performance."}}
-]
+]}}
 
 EXAMPLE 20
 
 Text: my main complaint is the battery life , i see many positive reviews about the battery life .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "battery life", "opinion": "complaint", "reason": "The noun \"complaint\" expresses a subjective negative evaluation of the battery life."}}
-]
+]}}
 
 {format_instructions} 

@@ -14,9 +14,9 @@ Your task is to extract the following three elements from the input text:
 
 EXTRACTION RULES:
 1. Identify every unique opinion in the text.
-2. For each opinion, output a tuple in this order: (aspect term, opinion term, reason).
-3. Return the tuples as a Python-style list, always include the aspect and opinion, null if not present.
-4. Do not add any extra text, commentary, or keys.
+2. For each opinion, create an object with "aspect", "opinion", and "reason" fields.
+3. Return all objects in an "extracted_pairs" array within a JSON object.
+4. Do not add any extra text, commentary, or keys outside the required structure.
 
 Return only valid JSON matching the provided format instructions.
 

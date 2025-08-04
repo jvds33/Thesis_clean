@@ -14,9 +14,9 @@ Your task is to extract the following three elements from the input text:
 
 EXTRACTION RULES:
 1. Identify every unique opinion in the text.
-2. For each opinion, output a tuple in this order: (aspect term, opinion term, reason).
-3. Return the tuples as a Python-style list, always include the aspect and opinion, null if not present.
-4. Do not add any extra text, commentary, or keys.
+2. For each opinion, create an object with "aspect", "opinion", and "reason" fields.
+3. Return all objects in an "extracted_pairs" array within a JSON object.
+4. Do not add any extra text, commentary, or keys outside the required structure.
 
 Return only valid JSON matching the provided format instructions.
 
@@ -25,154 +25,154 @@ Learn from these examples:
 EXAMPLE 1
 Text: the waitress was very patient with us and the food is phenomenal !
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "waitress", "opinion": "patient", "reason": "The opinion \"very patient\" evaluates the waitress, and intensifiers are excluded so \"patient\" is the opinion."}},
 {{"aspect": "food", "opinion": "phenomenal", "reason": "The opinion \"phenomenal\" evaluates the food."}}
-]
+]}}
 
 EXAMPLE 2
 Text: mermaid inn is an overall good restaurant with really good seafood .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "seafood", "opinion": "good", "reason": "The opinion \"good\" evaluates the seafood."}},
 {{"aspect": "mermaid inn", "opinion": "good", "reason": "The opinion \"good\" evaluates the restaurant \"mermaid inn\"."}}
-]
+]}}
 
 EXAMPLE 3
 Text: food is great and inexpensive .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "food", "opinion": "great", "reason": "The opinion \"great\" evaluates the food quality."}},
 {{"aspect": "food", "opinion": "inexpensive", "reason": "The opinion \"inexpensive\" evaluates the food prices."}}
-]
+]}}
 
 EXAMPLE 4
 Text: this is one of my favorite spot , very relaxing the food is great all the times , celebrated my engagement and my wedding here , it was very well organized .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "food", "opinion": "great", "reason": "The opinion \"great\" evaluates the food."}},
 {{"aspect": null, "opinion": "favorite", "reason": "The opinion \"favorite\" expresses a judgment about the restaurant overall, implicitly."}},
 {{"aspect": null, "opinion": "relaxing", "reason": "The opinion \"relaxing\" evaluates the ambience, but the aspect is implicit."}}
-]
+]}}
 
 EXAMPLE 5
 Text: would never go back
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": null, "opinion": null, "reason": "The sentence implies strong sentiment, but no explicit aspect or opinion word is present."}}
-]
+]}}
 
 EXAMPLE 6
 Text: for starters they delivered us someone else ' s order .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": null, "opinion": null, "reason": "The statement implies poor service, but no explicit opinion word or target is present."}}
-]
+]}}
 
 EXAMPLE 7
 Text: the portion sizes here are huge , and the sushi is good .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "portion sizes", "opinion": "huge", "reason": "The opinion \"huge\" evaluates the portion sizes."}},
 {{"aspect": "sushi", "opinion": "good", "reason": "The opinion \"good\" evaluates the sushi."}}
-]
+]}}
 
 EXAMPLE 8
 Text: it is terrific , as is the value .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": null, "opinion": "terrific", "reason": "The opinion \"terrific\" expresses a sentiment about an implied aspect (likely food or overall experience)."}},
 {{"aspect": null, "opinion": "terrific", "reason": "The opinion \"terrific\" evaluates the value (price-related) implicitly."}}
-]
+]}}
 
 EXAMPLE 9
 Text: bagels are ok , but be sure not to make any special requests !
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "bagels", "opinion": "ok", "reason": "The opinion \"ok\" gives an evaluation of the bagels."}},
 {{"aspect": null, "opinion": null, "reason": "The second part implies dissatisfaction with service, but no explicit opinion word or aspect is stated, just a statement."}}
-]
+]}}
 
 EXAMPLE 10
 Text: the place itself is beautiful the bar scene seems to be happening .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "place", "opinion": "beautiful", "reason": "The opinion \"beautiful\" evaluates the place's ambience."}},
 {{"aspect": "bar scene", "opinion": null, "reason": "The statement \"seems to be happening\" implies a sentiment about the bar scene, but no explicit opinion word is used."}}
-]
+]}}
 
 EXAMPLE 11
 Text: the prices are wonderfully low .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": null, "opinion": "wonderfully low", "reason": "The phrase "wonderfully low" evaluates the restaurant's prices positively while the aspect is implied."}}
-]
+]}}
 
 EXAMPLE 12
 Text: restaurant with a view
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "view", "opinion": null, "reason": "The noun "view" names a location feature, but no explicit opinion word is given."}}
-]
+]}}
 
 EXAMPLE 13
 Text: the sangria was pretty tasty and good on a hot muggy day .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "sangria", "opinion": "tasty", "reason": "The adjective "tasty" evaluates the sangria quality."}},
 {{"aspect": "sangria", "opinion": "good", "reason": "The adjective "good" also evaluates the sangria quality."}}
-]
+]}}
 
 EXAMPLE 14
 Text: drinks way over priced .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "drinks", "opinion": "over priced", "reason": "The phrase "over priced" evaluates the drinks' cost negatively."}}
-]
+]}}
 
 EXAMPLE 15
 Text: very good wine choices .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "wine choices", "opinion": "good", "reason": "The adjective "good" evaluates the variety of wine choices."}}
-]
+]}}
 
 EXAMPLE 16
 Text: will absolutely visit again .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": null, "opinion": null, "reason": "The sentence expresses positive intent toward the restaurant, but no explicit aspect or opinion word is present."}}
-]
+]}}
 
 EXAMPLE 17
 Text: helpful service and average price per dish $ 10 .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "service", "opinion": "helpful", "reason": "The adjective "helpful" evaluates the service positively."}},
 {{"aspect": "dish", "opinion": "average", "reason": "The adjective "average" evaluates the price per dish neutrally."}}
-]
+]}}
 
 EXAMPLE 18
 Text: everything was going good until we got our meals .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "meals", "opinion": null, "reason": "The complaint implies poor meal quality, but no explicit opinion word is used."}},
 {{"aspect": null, "opinion": "good", "reason": "The adjective "good" expresses a positive sentiment about the overall experience before receiving the meals."}}
-]
+]}}
 
 EXAMPLE 19
 Text: the pizza was pretty good and huge .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "pizza", "opinion": "good", "reason": "The adjective "good" evaluates the pizza quality."}},
 {{"aspect": "pizza", "opinion": "huge", "reason": "The adjective "huge" evaluates the pizza's portion size."}}
-]
+]}}
 
 EXAMPLE 20
 Text: love the atmosphere - felt like i was in paris .
 Pairs:
-[
+{{"extracted_pairs": [
 {{"aspect": "atmosphere", "opinion": "love", "reason": "The verb "love" evaluates the atmosphere positively."}}
-]
+]}}
 
 {format_instructions}   

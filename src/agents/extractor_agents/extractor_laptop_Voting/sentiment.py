@@ -24,9 +24,9 @@ import sys
 import os
 
 # --- V4 ---
-# Use the proven, working API from the llms directory
+# Use the proven, working API from the baseline directory
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from llms.api import llm_chat
+from baseline.api import llm_chat
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,10 @@ class SentimentAgent:
             logger.error(f"Error loading prompt file: {e}")
             raise
         
+    def classify_sentiment(self, state):
+        """Classify sentiment for aspect-opinion pairs."""
+        return self.run(state)
+        
     def run(self, state):
         """
         Run the sentiment classification agent on the provided state.
@@ -127,33 +131,40 @@ class SentimentAgent:
             state['sentiments'] = []
             return state
 
-        try:
-            system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
-            human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], opinions_with_reasons=opinions_with_reasons, lang=lang)
+        for attempt in range(2):  # Allow one retry
+            try:
+                system_message = self.prompt.messages[0].prompt.template.format(format_instructions=self.parser.get_format_instructions())
+                human_message = self.prompt.messages[1].prompt.template.format(text=state['text'], opinions_with_reasons=opinions_with_reasons, lang=lang)
 
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": human_message}
-            ]
-            
-            # Use the working llm_chat function with token tracking
-            raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
-            
-            # Store token usage for cost calculation
-            if usage:
-                if not hasattr(self, 'token_usage'):
-                    self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
-                self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
-                self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
+                messages = [
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": human_message}
+                ]
+                
+                # Use the working llm_chat function with token tracking
+                raw_response, usage = llm_chat(messages, model_name=self.model_name, temperature=0, return_usage=True)
+                
+                # Store token usage for cost calculation
+                if usage:
+                    if not hasattr(self, 'token_usage'):
+                        self.token_usage = {"prompt_tokens": 0, "completion_tokens": 0}
+                    self.token_usage["prompt_tokens"] += usage.get("prompt_tokens", 0)
+                    self.token_usage["completion_tokens"] += usage.get("completion_tokens", 0)
 
-            result = self.parser.parse(raw_response)
-            
-            state['sentiments'] = [item.dict() for item in result.sentiments]
-            
-        except Exception as e:
-            logger.error(f"Error in sentiment classification: {e}")
-            state['sentiments'] = [] # Ensure the key exists even on failure
-            
+                result = self.parser.parse(raw_response)
+                
+                state['sentiments'] = [item.dict() for item in result.sentiments]
+                return state  # Success, exit the loop and return
+                
+            except Exception as e:
+                logger.error(f"Error in sentiment classification (Attempt {attempt + 1}): {e}")
+                if attempt == 0:
+                    logger.info("Retrying sentiment classification...")
+                    continue
+        
+        # If both attempts fail
+        logger.error("Both attempts for sentiment classification failed.")
+        state['sentiments'] = [] # Ensure the key exists even on failure
         return state
         
     def _normalize_key(self, value):

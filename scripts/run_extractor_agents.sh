@@ -10,6 +10,7 @@ DATA_DIR="data"
 OUTPUT_DIR="output_multi"  # Changed to output_multi to match the LLM output structure
 START_INDEX=0
 PROMPT_TYPE="0shot"  # Added prompt type parameter
+INPUT_TEXT="The food was great but the service was slow."  # Default input text for interactive mode
 
 # Help function
 function show_help {
@@ -25,6 +26,7 @@ function show_help {
     echo "  -d, --domain DOMAIN      Domain to process: restaurant or laptop (default: $DOMAIN)"
     echo "  -b, --batch              Enable batch mode (default: $BATCH)"
     echo "  -p, --prompt-type TYPE   Prompt type: 0shot or 20shot (default: $PROMPT_TYPE)"
+    echo "  -i, --input TEXT         Input text for interactive mode (default: \"$INPUT_TEXT\")"
     echo "  --data-dir DIR           Data directory (default: $DATA_DIR)"
     echo "  --output-dir DIR         Output directory (default: $OUTPUT_DIR)"
     echo "  --start-index N          Start processing from index N (default: $START_INDEX)"
@@ -55,6 +57,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -p|--prompt-type)
             PROMPT_TYPE="$2"
+            shift 2
+            ;;
+        -i|--input)
+            INPUT_TEXT="$2"
             shift 2
             ;;
         --data-dir)
@@ -149,22 +155,24 @@ if [[ "$BATCH" == "true" ]]; then
         
     # Calculate and display cost after completion
     if [ -f "$RUN_OUTPUT_DIR/token_usage.json" ]; then
-        python agent_cost_calculator.py "$RUN_OUTPUT_DIR/token_usage.json" "$MODEL"
+        python src/cost_calculator.py "$RUN_OUTPUT_DIR/token_usage.json" "$MODEL"
     else
         echo "Warning: Token usage data not found. Cost calculation skipped."
     fi
 else
     echo "Running in interactive mode for $DOMAIN domain with $MODEL model(s), using $PROMPT_TYPE prompt type"
+    echo "Input text: $INPUT_TEXT"
+    
     PYTHONPATH=. python src/agents/run_extractor_agents.py \
         --domain "$DOMAIN" \
         --model "$MODEL" \
         --prompt-type "$PROMPT_TYPE" \
-        --input "The food was great but the service was slow." \
+        --input "$INPUT_TEXT" \
         --track-tokens
         
     # For interactive mode, display cost if token usage is available
     if [ -f "token_usage.json" ]; then
-        python agent_cost_calculator.py "token_usage.json" "$MODEL"
+        python src/cost_calculator.py "token_usage.json" "$MODEL"
     else
         echo "Warning: Token usage data not found. Cost calculation skipped."
     fi

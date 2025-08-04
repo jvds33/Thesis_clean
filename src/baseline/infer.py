@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 sys.path.append(".")
 from data_utils import get_transformed_io
 from eval_utils import extract_spans_para, compute_scores # Added compute_scores
-from llms.api import llm_chat
+from baseline.api import llm_chat
 
 # Define Pydantic models for structured extraction
 class ACOSQuad(BaseModel):
@@ -151,7 +151,7 @@ def load_prompt(task, data, prompt_type, use_pydantic=False):
         # For now, let's assume it will be one of these, or raise an error.
         raise ValueError(f"Unsupported dataset: {data}. Cannot determine prompt folder.")
 
-    prompt_path = f"llms/prompts_{data_folder_suffix}/{task}_{data}_{prompt_type}.txt"
+    prompt_path = f"baseline/prompts_{data_folder_suffix}/{task}_{data}_{prompt_type}.txt"
     
     with open(prompt_path, 'r', encoding='utf-8') as fp:
         prompt_template = fp.read().strip() + "\n\n"

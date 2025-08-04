@@ -9,6 +9,12 @@ src/llms/guide
 .DS_store
 .DS_Store
 output_multi/
+output_test/
+output_test*/
+temp_test/
+temp_test_output/
+processing_state/
+token_usage.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

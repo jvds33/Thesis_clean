@@ -1,5 +1,5 @@
 """
-Unified aspect-opinion extraction agent for laptop reviews with Agent Forest voting.
+Unified aspect-opinion extraction agent for restaurant reviews with Agent Forest voting.
 
 Input state keys required:
 • text: str
@@ -8,164 +8,337 @@ Output state keys added/overwritten:
 • extracted_pairs: List[Dict[str, str]]  # List of {"aspect": "...", "opinion": "...", "reason": "..."}
 """
 
+import logging
 import os
 import re
 import difflib
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
+import copy
+from .category import CategoryAgent
+from .sentiment import SentimentAgent
 
-from dotenv import load_dotenv
 from langchain.prompts import ChatPromptTemplate
 from langchain.output_parsers import PydanticOutputParser
 from pydantic import BaseModel, Field
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 
-# --- V4 ---
-# Use the proven, working API from the llms directory
+# Add project root to path to allow imports
 import sys
-# Add src to path to allow importing from llms
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-from llms.api import llm_chat, reset_api_logging_for_sample
-import logging
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..')))
+from src.baseline.api import llm_chat
+from src.agents.validation import audit_logger, ValidationError
 
 logger = logging.getLogger(__name__)
 
-class AspectOpinionPair(BaseModel):
-    aspect: Optional[str] = Field(description="The aspect term extracted or inferred from the text. Use null if there is no clear aspect.")
-    opinion: Optional[str] = Field(description="The opinion phrase extracted or inferred from the text. Use null if there is no clear opinion.")
-    reason: str = Field(description="A brief one-sentence explanation of why this aspect-opinion pair is present in the text.")
+class ExtractionPair(BaseModel):
+    aspect: Optional[str] = None
+    opinion: Optional[str] = None
+    reason: Optional[str] = None
 
 class ExtractionResponse(BaseModel):
-    pairs: List[AspectOpinionPair] = Field(description="List of aspect-opinion pairs with reasoning")
+    extracted_pairs: List[ExtractionPair]
+
+def display_voter_predictions(all_predictions: List[List[Dict[str, Any]]]):
+    """Display the predictions from each voter."""
+    print("\n📊 VOTER PREDICTIONS:")
+    print("-" * 80)
+    for i, pairs in enumerate(all_predictions):
+        print(f"🗳️  Voter {i+1}:")
+        if pairs:
+            print(f"   Count: {len(pairs)} pairs")
+            for j, pair in enumerate(pairs):
+                print(f"   {j+1}. ({pair.get('aspect')}, {pair.get('opinion')})")
+        else:
+            print("   ❌ No valid predictions")
+    print()
+
+def count_pair_votes(all_predictions: List[List[Dict[str, Any]]]):
+    """Count votes for each unique aspect-opinion pair."""
+    pair_counts = Counter()
+    original_pair_map = {}
+    valid_predictions = []
+
+    for voter_preds in all_predictions:
+        # Filter out empty predictions
+        if not voter_preds:
+            continue
+        
+        valid_predictions.append(voter_preds)
+        
+        # Create a set of tuples for efficient counting
+        seen_pairs_per_voter = set()
+        for pair in voter_preds:
+            aspect = pair.get('aspect', 'null')
+            opinion = pair.get('opinion', 'null')
+            
+            # Normalize for counting
+            key = (str(aspect).lower().strip(), str(opinion).lower().strip())
+            
+            # Store original casing and reasoning
+            if key not in original_pair_map:
+                original_pair_map[key] = {
+                    'aspect': aspect,
+                    'opinion': opinion,
+                    'reasons': []
+                }
+            
+            if pair.get('reason'):
+                original_pair_map[key]['reasons'].append(pair.get('reason'))
+            
+            seen_pairs_per_voter.add(key)
+            
+        # Add to global counts
+        for key in seen_pairs_per_voter:
+            pair_counts[key] += 1
+            
+    return pair_counts, original_pair_map, valid_predictions
 
 class UnifiedExtractorAgent:
-    def __init__(self, llm=None, ensemble_size=1, temperature=0.0, parallel=True, model="gpt-4o", prompt_type="20shot"):
-        """Initialize the Unified Extractor agent with Agent Forest voting capabilities."""
-        self.model_name = model.lower()
+    def __init__(self, llm=None, model="gpt-4o", prompt_type="fewshot", ensemble_size=1, temperature=0.0, parallel=True, category_agent: CategoryAgent = None, sentiment_agent: SentimentAgent = None):
+        """
+        Initialize the Unified Extractor agent.
         
-        # Agent Forest voting parameters
+        Args:
+            llm: Language model instance.
+            model: Name of the model to use.
+            prompt_type: Type of prompt to use ('zeroshot' or 'fewshot').
+            ensemble_size: Number of voters for ensemble extraction.
+            temperature: Temperature for LLM sampling.
+            parallel: Whether to run voters in parallel.
+            category_agent: An instance of CategoryAgent.
+            sentiment_agent: An instance of SentimentAgent.
+        """
+        self.llm = llm
+        self.model_name = model.lower()
+        self.prompt_type = prompt_type
         self.ensemble_size = ensemble_size
         self.temperature = temperature
         self.parallel = parallel
-        self.prompt_type = prompt_type
+        self.category_agent = category_agent
+        self.sentiment_agent = sentiment_agent
         
+        # Set up output parser
         self.parser = PydanticOutputParser(pydantic_object=ExtractionResponse)
         
-        # Load the prompt from file
-        self.system_prompt = self._load_prompt_from_file()
+        # Load prompts
+        self.prompt = self._load_prompts()
+        self.retry_prompt = self._load_retry_prompts()
         
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", self.system_prompt),
-            ("human", 
-             "Text: {text}\n\n"
-             "JSON list of pairs:")
-        ])
-        
-        self.retry_prompt = ChatPromptTemplate.from_messages([
-            ("system", self.system_prompt + "\n\nIMPORTANT: The previous extraction contained aspect/opinion terms that were not found in the original text. Please re-extract ensuring that aspect and opinion terms appear exactly as they are written in the text (including any typos or variations)."),
-            ("human", 
-             "Text: {text}\n\n"
-             "Previous extraction had unfindable terms. Please extract aspect-opinion pairs using EXACT terms from the text:\n\n"
-             "JSON list of pairs:")
-        ])
-        
-        self.prompt = self.prompt.partial(
-            format_instructions=self.parser.get_format_instructions()
-        )
-        
-        self.retry_prompt = self.retry_prompt.partial(
-            format_instructions=self.parser.get_format_instructions()
-        )
-
-    def _load_prompt_from_file(self):
-        """Load the system prompt from the txt file."""
-        # Get the directory of the current file
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-
-        if self.prompt_type in ["zeroshot", "0shot"]:
-            prompt_file_name = "unified_extractor_prompt_0shot.txt"
-        else:
-            prompt_file_name = "unified_extractor_prompt.txt"
-
-        prompt_file_path = os.path.join(current_dir, "prompts", prompt_file_name)
-        
+    def _load_prompts(self):
+        """Load the appropriate prompts based on configuration."""
         try:
+            # Get the directory of the current file
+            current_dir = os.path.dirname(os.path.abspath(__file__))
+
+            if self.prompt_type in ["zeroshot", "0shot"]:
+                prompt_file_name = "unified_extractor_prompt_0shot.txt"
+            else:
+                prompt_file_name = "unified_extractor_prompt.txt"
+
+            prompt_file_path = os.path.join(current_dir, "prompts", prompt_file_name)
+            
             with open(prompt_file_path, 'r', encoding='utf-8') as file:
-                prompt_content = file.read()
-            return prompt_content
+                system_template = file.read()
+
+            human_template = """Text: {text}
+
+Extract all aspect-opinion pairs."""
+
+            # Create the chat prompt template
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_template),
+                ("human", human_template),
+            ])
+
+            return prompt
+            
         except FileNotFoundError:
             logger.error(f"Prompt file not found at {prompt_file_path}")
             raise
         except Exception as e:
-            logger.error(f"Error loading prompt file: {e}")
+            logger.error(f"Error loading prompts: {e}")
             raise
 
-    def _is_term_findable_in_text(self, term, text):
-        """
-        Check if a term can be found in the text using case-insensitive regex.
-        Returns True if term is null/NULL or if found in text.
-        """
-        if term is None or term.lower() in ["null", "NULL"]:
-            return True
-        
-        # Regex to find the whole word, case-insensitive
-        # This handles cases where the term might be a substring of another word
-        # We need to escape the term in case it contains special regex characters
-        return bool(re.search(r'\b' + re.escape(term) + r'\b', text, re.IGNORECASE))
+    def _load_retry_prompts(self):
+        """Load the retry prompts for when extraction fails."""
+        try:
+            # Get the directory of the current file
+            current_dir = os.path.dirname(os.path.abspath(__file__))
 
-    def _find_most_similar_text(self, target_term, text):
-        """
-        Find the most similar substring in the text to the target term.
-        """
-        if not target_term or not text:
-            return None
-        
-        words = text.split()
-        if not words:
-            return None
-        
-        # Find the best match using difflib
-        closest_match = difflib.get_close_matches(target_term, words, n=1, cutoff=0.8)
-        
-        return closest_match[0] if closest_match else None
+            if self.prompt_type in ["zeroshot", "0shot"]:
+                prompt_file_name = "unified_extractor_prompt_0shot.txt"
+            else:
+                prompt_file_name = "unified_extractor_prompt.txt"
 
-    def _apply_fallback_fixes(self, pairs: List[AspectOpinionPair], original_text: str) -> List[AspectOpinionPair]:
-        """Attempt to fix unfindable terms by finding the most similar text."""
-        fixed_pairs = []
-        for pair in pairs:
-            fixed_aspect = pair.aspect
-            fixed_opinion = pair.opinion
-
-            if not self._is_term_findable_in_text(pair.aspect, original_text):
-                most_similar = self._find_most_similar_text(pair.aspect, original_text)
-                if most_similar:
-                    logger.info(f"Fallback Fix: Replaced aspect '{pair.aspect}' with most similar term '{most_similar}'")
-                    fixed_aspect = most_similar
+            prompt_file_path = os.path.join(current_dir, "prompts", prompt_file_name)
             
-            if not self._is_term_findable_in_text(pair.opinion, original_text):
-                most_similar = self._find_most_similar_text(pair.opinion, original_text)
-                if most_similar:
-                    logger.info(f"Fallback Fix: Replaced opinion '{pair.opinion}' with most similar term '{most_similar}'")
-                    fixed_opinion = most_similar
+            with open(prompt_file_path, 'r', encoding='utf-8') as file:
+                base_system_template = file.read()
 
-            fixed_pairs.append(AspectOpinionPair(aspect=fixed_aspect, opinion=fixed_opinion, reason=pair.reason))
+            # Add the retry-specific instruction to the base prompt
+            system_template = base_system_template + "\n\nIMPORTANT: The previous extraction contained aspect/opinion terms that were not found in the original text. Please re-extract ensuring that aspect and opinion terms appear exactly as they are in the text."
+
+            human_template = """Text: {text}
+
+Extract all aspect-opinion pairs."""
+
+            # Create the chat prompt template
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_template),
+                ("human", human_template),
+            ])
+
+            return prompt
+        
+        except FileNotFoundError:
+            logger.error(f"Prompt file not found at {prompt_file_path}")
+            raise
+        except Exception as e:
+            logger.error(f"Error loading retry prompts: {e}")
+            raise
+
+    def extract_pairs(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Extract aspect-opinion pairs from the text in the state.
+        This method orchestrates the full extraction and classification pipeline.
+        """
+        review_id = state.get('review_id', 'unknown')
+        text = state.get('text')
+        if not text:
+            raise ValueError("Input state must contain a 'text' key")
+
+        try:
+            # Main path: extraction with voting
+            all_predictions = self._extract_with_voting(state['text'])
+            display_voter_predictions(all_predictions)
             
-        return fixed_pairs
+            # Count votes
+            pair_votes, original_pair_map, valid_predictions = count_pair_votes(all_predictions)
+            
+            if not pair_votes:
+                print("❌ No valid predictions from any voter!")
+                raise ValueError("No valid predictions from any voter")
+            
+            if len(valid_predictions) == 1:
+                winner = valid_predictions[0]
+                print(f"🏆 VOTING RESULT: Only one valid prediction")
+                print(f"   Winner: {len(winner)} pairs")
+                state['extracted_pairs'] = winner
+            else:
+                # Apply fallback fixes only if ensemble_size > 1, otherwise return as is
+                if self.ensemble_size > 1:
+                    final_pairs = self._apply_fallback_fixes(valid_predictions, state['text'])
+                else:
+                    final_pairs = valid_predictions[0]
+                
+                state['extracted_pairs'] = final_pairs
+            
+            # Log successful extraction
+            audit_logger.log_operation(
+                operation="extraction_voting",
+                review_id=review_id,
+                agent="unified_extractor",
+                input_data={"text": text[:100]},
+                output_data={"pairs_count": len(state.get('extracted_pairs', []))},
+                success=True
+            )
+            
+        except Exception as e:
+            logger.warning(f"Agent Forest voting failed, falling back to single extraction. Error: {e}")
+            
+            # Fallback to a single, non-voting extraction call
+            try:
+                # Use the same extraction logic as a single voter
+                single_extraction_result = self._make_single_extraction(text, voter_id=0)
+                state['extracted_pairs'] = single_extraction_result
+                
+                # Log fallback extraction
+                audit_logger.log_operation(
+                    operation="extraction_fallback",
+                    review_id=review_id,
+                    agent="unified_extractor",
+                    input_data={"text": text[:100]},
+                    output_data={"pairs_count": len(single_extraction_result)},
+                    success=True,
+                    metadata={"fallback_reason": str(e)}
+                )
+                
+            except Exception as e2:
+                logger.warning(f"Fallback extraction also failed, defaulting to empty list. Error: {e2}")
+                state['extracted_pairs'] = []
+                
+                # Log extraction failure
+                audit_logger.log_operation(
+                    operation="extraction_error",
+                    review_id=review_id,
+                    agent="unified_extractor",
+                    input_data={"text": text[:100]},
+                    output_data="complete_failure",
+                    success=False,
+                    error_msg=str(e2)
+                )
 
-    def _needs_retry(self, pairs: List[AspectOpinionPair], original_text: str) -> bool:
-        """Check if any extracted term is not findable in the original text."""
-        for pair in pairs:
-            # Check both aspect and opinion terms using attribute access
-            if not self._is_term_findable_in_text(pair.aspect, original_text):
-                logger.warning(f"Aspect '{pair.aspect}' not found in text. Triggering retry.")
-                return True
-            if not self._is_term_findable_in_text(pair.opinion, original_text):
-                logger.warning(f"Opinion '{pair.opinion}' not found in text. Triggering retry.")
-                return True
-        return False
+        # Add the extracted pairs to state for downstream agents
+        state['all_pairs'] = []
+        for pair in state.get('extracted_pairs', []):
+            aspect = pair.get('aspect')
+            opinion = pair.get('opinion')
+            
+            if aspect is None:
+                aspect = "null"
+            if opinion is None:
+                opinion = "null"
+                
+            state['all_pairs'].append({
+                'aspect': aspect,
+                'opinion': opinion
+            })
 
-    def _make_single_extraction(self, text: str, voter_id: int) -> List[Dict[str, str]]:
+        # --- Start of Parallel Classification (Orchestrated by Extractor) ---
+        if self.category_agent and self.sentiment_agent:
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                state_for_classifiers = copy.deepcopy(state)
+                
+                future_category = executor.submit(self.category_agent.classify_category, state_for_classifiers)
+                future_sentiment = executor.submit(self.sentiment_agent.classify_sentiment, state_for_classifiers)
+
+                category_result_state = future_category.result()
+                sentiment_result_state = future_sentiment.result()
+
+            # Merge results back into the state
+            state['categorized_pairs'] = category_result_state.get('categorized_pairs', [])
+            state['sentiments'] = sentiment_result_state.get('sentiments', [])
+            
+            # Log classification results
+            audit_logger.log_operation(
+                operation="parallel_classification",
+                review_id=review_id,
+                agent="unified_extractor",
+                input_data={"pairs_count": len(state.get('extracted_pairs', []))},
+                output_data={
+                    "categorized_count": len(state.get('categorized_pairs', [])),
+                    "sentiment_count": len(state.get('sentiments', []))
+                },
+                success=True
+            )
+        # --- End of Parallel Classification ---
+
+        return state
+
+    def _extract_with_voting(self, text: str) -> List[List[Dict[str, Any]]]:
+        """Run the extraction with voting."""
+        if self.parallel:
+            with ThreadPoolExecutor() as executor:
+                futures = [executor.submit(self._make_single_extraction, text, i) for i in range(self.ensemble_size)]
+                return [future.result() for future in as_completed(futures)]
+        else:
+            return [self._make_single_extraction(text, i) for i in range(self.ensemble_size)]
+
+    def _make_single_extraction(self, text: str, voter_id: int) -> List[Dict[str, Any]]:
         """Makes a single extraction call using the llms.api."""
         
         current_prompt = self.prompt
@@ -193,283 +366,118 @@ class UnifiedExtractorAgent:
                 
                 parsed_response = self.parser.parse(raw_response)
 
-                # Validate terms and retry if necessary - but only if ensemble_size > 1
-                if self.ensemble_size > 1 and self._needs_retry(parsed_response.pairs, text):
-                    logger.warning(f"Voter {voter_id}, Attempt {attempt+1}: Bad extraction, retrying...")
+                # Validate that the extracted terms are in the text
+                if not self._validate_pairs(parsed_response.extracted_pairs, text):
+                    logger.warning(f"Voter {voter_id}, Attempt {attempt+1}: Validation failed, retrying...")
                     current_prompt = self.retry_prompt # Switch to retry prompt
                     if attempt == 0: continue # Continue to next attempt in the loop
                 
-                # Apply fallback fixes only if ensemble_size > 1, otherwise return as is
-                if self.ensemble_size > 1:
-                    final_pairs = self._apply_fallback_fixes(parsed_response.pairs, text)
-                else:
-                    final_pairs = parsed_response.pairs
-
-                return [p.dict() for p in final_pairs]
+                return [p.model_dump() for p in parsed_response.extracted_pairs]
 
             except Exception as e:
                 logger.error(f"Voter {voter_id}: Failed to extract or parse on attempt {attempt+1}. Error: {e}")
+                if attempt == 0:
+                    current_prompt = self.retry_prompt
+                    continue
         
+        logger.warning(f"Voter {voter_id}: All extraction attempts failed, returning empty list.")
         return [] # Return empty list if all attempts fail
+        
+    def _validate_pairs(self, pairs: List[ExtractionPair], text: str) -> bool:
+        """Validate that all extracted terms are present in the text."""
+        for pair in pairs:
+            if pair.aspect and not self._is_term_findable_in_text(pair.aspect, text):
+                return False
+            if pair.opinion and not self._is_term_findable_in_text(pair.opinion, text):
+                return False
+        return True
 
-    def _normalize_pair_for_voting(self, pair: Dict[str, str]) -> tuple:
-        """Normalize aspect-opinion pair for voting comparison (exclude reason)."""
-        return (str(pair.get('aspect', '')).lower().strip(), str(pair.get('opinion', '')).lower().strip())
-
-    def _extract_with_voting(self, text: str) -> List[Dict[str, str]]:
+    def _is_term_findable_in_text(self, term, text):
         """
-        Performs aspect-opinion extraction using the Agent Forest majority voting method.
+        Check if a term can be found in the text using case-insensitive regex.
+        Returns True if term is null/NULL or if found in text.
         """
-        print("=" * 80)
-        print(f"🌲 AGENT FOREST VOTING - Aspect-Opinion Extraction (Ensemble Size: {self.ensemble_size})")
-        print(f"📝 Input Text: '{text[:100]}...'")
-        print(f"🎯 Temperature: {self.temperature} | Parallel: {self.parallel}")
-        print("=" * 80)
-
-        # Reset logging for the new sample to avoid clutter
-        reset_api_logging_for_sample()
+        if term is None or term.lower() in ["null", "NULL"]:
+            return True
         
-        if self.ensemble_size < 1:
-            raise ValueError("Ensemble size must be at least 1")
+        # Regex to find the whole word, case-insensitive
+        return bool(re.search(r'\b' + re.escape(term) + r'\b', text, re.IGNORECASE))
+
+    def _find_most_similar_text(self, target_term, text):
+        """Find the most similar substring in text to the target term."""
+        if not target_term or not text:
+            return None
         
-        def get_predictions_from_voters(num_voters: int, voter_offset: int = 0):
-            """Helper function to get predictions from a specified number of voters."""
-            predictions = []
-            
-            if self.parallel and num_voters > 1:
-                print(f"🔄 Making {num_voters} parallel extraction calls...")
-                
-                # Build the executor without a context manager so we can shut it down
-                # immediately after use (avoids blocking on long-running threads).
-                executor = ThreadPoolExecutor(max_workers=min(8, num_voters))
-
-                # Submit jobs and remember which voter index each future belongs to
-                futures_map = {
-                    executor.submit(self._make_single_extraction, text, i + 1 + voter_offset): i
-                    for i in range(num_voters)
-                }
-
-                # Pre-allocate list to preserve output order (index == voter)
-                predictions = [[] for _ in range(num_voters)]
-
-                try:
-                    # Collect results as they complete so a single slow call cannot block the rest
-                    for future in as_completed(futures_map, timeout=65):
-                        idx = futures_map[future]
-                        try:
-                            predictions[idx] = future.result()
-                        except Exception as e:
-                            print(f"❌ Voter {idx + 1 + voter_offset}: Call failed - {e}")
-                            predictions[idx] = []
-                except Exception as e:
-                    # Handles TimeoutError from as_completed or other unexpected exceptions
-                    print(f"⚠️  Parallel extraction interrupted: {e}")
-                finally:
-                    # Cancel whatever is still running and shutdown executor without waiting
-                    for fut in futures_map:
-                        if not fut.done():
-                            fut.cancel()
-                    executor.shutdown(wait=False)
-
-            else:
-                print(f"🔄 Making {num_voters} sequential extraction calls...")
-                for i in range(num_voters):
-                    try:
-                        pred = self._make_single_extraction(text, i+1+voter_offset)
-                        predictions.append(pred)
-                    except Exception as e:
-                        print(f"❌ Voter {i+1+voter_offset}: Call failed - {e}")
-                        predictions.append([])
-            
-            return predictions
+        words = text.split()
+        if not words:
+            return None
         
-        def display_voter_predictions(predictions, voter_offset=0):
-            """Helper function to display voter predictions."""
-            print(f"\n📊 VOTER PREDICTIONS:")
-            print(f"{'-'*80}")
-            for i, pred in enumerate(predictions):
-                print(f"🗳️  Voter {i+1+voter_offset}:")
-                if pred:
-                    print(f"   Count: {len(pred)} pairs")
-                    for j, pair in enumerate(pred[:3]):  # Show first 3 pairs
-                        print(f"   {j+1}. ({pair['aspect']}, {pair['opinion']})")
-                    if len(pred) > 3:
-                        print(f"   ... and {len(pred)-3} more")
-                else:
-                    print(f"   ❌ No valid predictions")
-                print()
+        closest_match = difflib.get_close_matches(target_term, words, n=1, cutoff=0.8)
         
-        def count_pair_votes(all_predictions):
-            """Helper function to count votes for each aspect-opinion pair."""
-            # Filter out empty predictions
-            valid_predictions = [pred for pred in all_predictions if pred]
+        return closest_match[0] if closest_match else None
+
+    def _apply_fallback_fixes(self, pairs: List[ExtractionPair], original_text: str) -> List[ExtractionPair]:
+        """Attempt to fix unfindable terms by finding the most similar text."""
+        fixed_pairs = []
+        for pair in pairs:
+            fixed_aspect = pair.aspect
+            fixed_opinion = pair.opinion
             
-            if not valid_predictions:
-                return Counter(), {}, valid_predictions
-            
-            # Count votes for each normalized pair (excluding reason)
-            pair_votes = Counter()
-            original_pair_map = {}  # Map normalized -> original form with reason
-            
-            for pred in valid_predictions:
-                seen_in_this_prediction = set()  # Track pairs seen in this prediction
-                for pair in pred:
-                    norm_pair = self._normalize_pair_for_voting(pair)
+            if pair.aspect and not self._is_term_findable_in_text(pair.aspect, original_text):
+                most_similar = self._find_most_similar_text(pair.aspect, original_text)
+                if most_similar:
+                    logger.info(f"Fallback Fix: Replaced aspect '{pair.aspect}' with most similar term '{most_similar}'")
+                    fixed_aspect = most_similar
                     
-                    # Only count once per prediction (avoid double counting)
-                    if norm_pair not in seen_in_this_prediction:
-                        pair_votes[norm_pair] += 1
-                        seen_in_this_prediction.add(norm_pair)
-                        
-                        # Keep track of original form with reason (prefer the first seen)
-                        if norm_pair not in original_pair_map:
-                            original_pair_map[norm_pair] = pair
-            
-            return pair_votes, original_pair_map, valid_predictions
-        
-        def try_voting_with_threshold(pair_votes, original_pair_map, threshold, level_name):
-            """Helper function to try voting with a specific threshold."""
-            print(f"\n🗳️  {level_name} - THRESHOLD: {threshold} votes")
-            print(f"{'-'*80}")
-            
-            # Sort by vote count (descending) for better display
-            sorted_votes = sorted(pair_votes.items(), key=lambda x: x[1], reverse=True)
-            
-            winning_pairs = []
-            for norm_pair, vote_count in sorted_votes:
-                original_pair = original_pair_map[norm_pair]
-                meets_threshold = vote_count >= threshold
-                status = "✅ ACCEPTED" if meets_threshold else "❌ REJECTED"
-                
-                print(f"📋 ({original_pair['aspect']}, {original_pair['opinion']})")
-                print(f"   Votes: {vote_count} | Threshold: {threshold} | {status}")
-            
-                if meets_threshold:
-                    winning_pairs.append(original_pair)
-            
-            return winning_pairs
+            if pair.opinion and not self._is_term_findable_in_text(pair.opinion, original_text):
+                most_similar = self._find_most_similar_text(pair.opinion, original_text)
+                if most_similar:
+                    logger.info(f"Fallback Fix: Replaced opinion '{pair.opinion}' with most similar term '{most_similar}'")
+                    fixed_opinion = most_similar
 
-        # ==== INITIAL VOTING ROUND ====
-        all_predictions = get_predictions_from_voters(self.ensemble_size)
-        display_voter_predictions(all_predictions)
+            fixed_pairs.append(ExtractionPair(aspect=fixed_aspect, opinion=fixed_opinion, reason=pair.reason))
         
-        # Count votes
-        pair_votes, original_pair_map, valid_predictions = count_pair_votes(all_predictions)
-        
-        if not pair_votes:
-            print("❌ No valid predictions from any voter!")
-            return []
-        
-        if len(valid_predictions) == 1:
-            winner = valid_predictions[0]
-            print(f"🏆 VOTING RESULT: Only one valid prediction")
-            print(f"   Winner: {len(winner)} pairs")
-            return winner
-        
-        valid_voters = len(valid_predictions)
-        normal_threshold = (valid_voters + 1) // 2  # ⌈N/2⌉
-        print(f"📊 Majority threshold: {normal_threshold} votes (out of {valid_voters} valid voters)")
-        
-        # ==== TRY NORMAL MAJORITY VOTING ====
-        winning_pairs = try_voting_with_threshold(pair_votes, original_pair_map, normal_threshold, "NORMAL MAJORITY VOTING")
-        
-        if winning_pairs:
-            print(f"\n🏆 SUCCESS: Normal majority voting found {len(winning_pairs)} pairs!")
-            return winning_pairs
-        
-        print(f"\n⚠️  Normal majority voting failed - entering fallback system...")
-        
-        # ==== LEVEL 1 FALLBACK: Lower threshold by 1 ====
-        level1_threshold = max(1, normal_threshold - 1)
-        print(f"\n🛡️  LEVEL 1 FALLBACK: Lowering threshold from {normal_threshold} to {level1_threshold}")
-        
-        winning_pairs = try_voting_with_threshold(pair_votes, original_pair_map, level1_threshold, "LEVEL 1 FALLBACK")
-        
-        if winning_pairs:
-            print(f"\n🏆 SUCCESS: Level 1 fallback found {len(winning_pairs)} pairs!")
-            return winning_pairs
-        
-        # ==== LEVEL 2 FALLBACK: Accept highest vote count ====
-        print(f"\n🛡️  LEVEL 2 FALLBACK: Accepting pairs with highest vote count")
-        
-        if pair_votes:
-            max_votes = max(pair_votes.values())
-            print(f"   Highest vote count found: {max_votes}")
-            
-            winning_pairs = try_voting_with_threshold(pair_votes, original_pair_map, max_votes, "LEVEL 2 FALLBACK")
-            
-            if winning_pairs:
-                print(f"\n🏆 SUCCESS: Level 2 fallback found {len(winning_pairs)} pairs!")
-                return winning_pairs
-        
-        # ==== LEVEL 3 FALLBACK: Add more agents and revote ====
-        print(f"\n🛡️  LEVEL 3 FALLBACK: Adding more agents and revoting")
-        
-        additional_voters = max(2, min(5, self.ensemble_size // 2))
-        print(f"   Adding {additional_voters} additional voters to break deadlock...")
-        
-        # Get predictions from additional voters
-        additional_predictions = get_predictions_from_voters(additional_voters, voter_offset=self.ensemble_size)
-        display_voter_predictions(additional_predictions, voter_offset=self.ensemble_size)
-        
-        # Combine all predictions
-        combined_predictions = all_predictions + additional_predictions
-        total_combined_voters = len(combined_predictions)
-        
-        # Recount votes with all voters
-        combined_pair_votes, combined_original_map, combined_valid_predictions = count_pair_votes(combined_predictions)
-        
-        if not combined_pair_votes:
-            print("❌ Level 3 fallback: Still no valid predictions!")
-            return []
-        
-        # Calculate new threshold for combined voting
-        combined_valid_voters = len(combined_valid_predictions)
-        combined_threshold = (combined_valid_voters + 1) // 2
-        print(f"\n📊 Combined voting with {combined_valid_voters} valid voters (threshold: {combined_threshold})")
-        
-        winning_pairs = try_voting_with_threshold(combined_pair_votes, combined_original_map, combined_threshold, "LEVEL 3 COMBINED VOTING")
-        
-        if winning_pairs:
-            print(f"\n🏆 SUCCESS: Level 3 fallback found {len(winning_pairs)} pairs!")
-            return winning_pairs
-        
-        # Final fallback - accept highest vote count from combined voting
-        if combined_pair_votes:
-            max_combined_votes = max(combined_pair_votes.values())
-            print(f"\n🛡️  FINAL FALLBACK: Accepting highest vote count ({max_combined_votes}) from combined voting")
-            
-            winning_pairs = try_voting_with_threshold(combined_pair_votes, combined_original_map, max_combined_votes, "FINAL FALLBACK")
-            
-            if winning_pairs:
-                print(f"\n🏆 SUCCESS: Final fallback found {len(winning_pairs)} pairs!")
-                return winning_pairs
-        
-        # Absolute last resort
-        print("\n❌ ALL FALLBACK LEVELS EXHAUSTED")
-        print("🔍 SYSTEM DIAGNOSIS: Extremely low confidence - no consensus possible")
-        return []
+        return fixed_pairs
 
-    def run(self, state):
-        """Run the agent."""
-        text = state.get('text')
-        if not text:
-            raise ValueError("Input state must contain a 'text' key")
+    def _needs_retry(self, pairs: List[ExtractionPair], original_text: str) -> bool:
+        """Check if any extracted term is not findable in the original text."""
+        for pair in pairs:
+            # Check both aspect and opinion terms
+            if pair.aspect and not self._is_term_findable_in_text(pair.aspect, original_text):
+                logger.warning(f"Aspect '{pair.aspect}' not found in text. Triggering retry.")
+                return True
+            if pair.opinion and not self._is_term_findable_in_text(pair.opinion, original_text):
+                logger.warning(f"Opinion '{pair.opinion}' not found in text. Triggering retry.")
+                return True
+        return False
 
-        try:
-            # Main path: extraction with voting
-            winning_pairs = self._extract_with_voting(text)
-            state['extracted_pairs'] = winning_pairs
-        except Exception as e:
-            logger.warning(f"Agent Forest voting failed, falling back to single extraction. Error: {e}")
-            
-            # Fallback to a single, non-voting extraction call
-            try:
-                # Use the same extraction logic as a single voter
-                single_extraction_result = self._make_single_extraction(text, voter_id=0)
-                state['extracted_pairs'] = single_extraction_result
-            except Exception as e2:
-                logger.warning(f"Fallback extraction also failed, defaulting to empty list. Error: {e2}")
-                state['extracted_pairs'] = []
+    def _get_majority_pairs(self, all_pairs: List[List[ExtractionPair]], threshold: int) -> List[ExtractionPair]:
+        """Get pairs that appear in at least threshold number of predictions."""
+        # Convert pairs to tuples for counting
+        pair_tuples = []
+        for pairs in all_pairs:
+            for pair in pairs:
+                pair_tuples.append((
+                    str(pair.aspect).lower().strip() if pair.aspect else None,
+                    str(pair.opinion).lower().strip() if pair.opinion else None,
+                    pair.reason if pair.reason else None
+                ))
         
-        return state 
+        # Count occurrences
+        pair_counts = Counter(pair_tuples)
+        
+        # Get pairs that meet threshold
+        final_pairs = []
+        for (aspect, opinion, reason), count in pair_counts.items():
+            if count >= threshold:
+                final_pairs.append(ExtractionPair(
+                    aspect=aspect,
+                    opinion=opinion,
+                    reason=reason
+                ))
+        
+        return final_pairs
+
+    def _format_pairs(self, pairs: List[ExtractionPair]) -> List[Dict[str, Any]]:
+        """Format pairs for output."""
+        return [p.model_dump() for p in pairs] 
